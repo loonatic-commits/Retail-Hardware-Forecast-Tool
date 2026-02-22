@@ -1,0 +1,345 @@
+/* ============================================
+   SnapVault - Photo Editor Styles
+   ============================================ */
+
+.photo-editor {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-dark);
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.editor-header .icon-btn {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.editor-header .icon-btn:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.editor-title {
+  color: white;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.editor-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-header-actions .small-btn {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+  background: transparent;
+}
+
+.editor-header-actions .small-btn:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  color: white;
+}
+
+.editor-header-actions .small-btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* ---- Canvas Area ---- */
+.editor-canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+#editor-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+  cursor: crosshair;
+}
+
+/* Crop overlay */
+.crop-overlay {
+  position: absolute;
+  border: 2px dashed white;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  cursor: move;
+  z-index: 5;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+.crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+.crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+.crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+
+/* ---- Toolbar ---- */
+.editor-toolbar {
+  background: #2d2d44;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tool-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tool-tab {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  border-bottom: 2px solid transparent;
+}
+
+.tool-tab:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.tool-tab.active {
+  color: white;
+  border-bottom-color: var(--primary);
+}
+
+/* ---- Tool Panel ---- */
+.tool-panel {
+  padding: 16px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.tool-content {
+  display: none;
+}
+
+.tool-content.active {
+  display: block;
+}
+
+/* ---- Adjust Sliders ---- */
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.slider-group label {
+  width: 80px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+
+.slider-group input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+}
+
+.slider-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.slider-group input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.slider-value {
+  width: 32px;
+  text-align: right;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-content .action-btn {
+  margin-top: 8px;
+}
+
+.tool-content .action-btn.full-width {
+  background: rgba(108, 92, 231, 0.8);
+}
+
+.tool-content .action-btn.full-width:hover {
+  background: var(--primary);
+}
+
+/* ---- Filters Grid ---- */
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+}
+
+.filter-item {
+  cursor: pointer;
+  text-align: center;
+  transition: var(--transition);
+}
+
+.filter-item:hover {
+  transform: scale(1.05);
+}
+
+.filter-item.active {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.filter-preview {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.filter-preview canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+}
+
+.filter-name {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
+  display: block;
+}
+
+/* ---- Crop Panel ---- */
+.crop-ratios {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.crop-ratio {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: var(--transition);
+}
+
+.crop-ratio:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
+}
+
+.crop-ratio.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* ---- Transform Panel ---- */
+.transform-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.transform-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 0.8rem;
+}
+
+.transform-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.transform-btn:active {
+  background: rgba(108, 92, 231, 0.3);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .tool-panel {
+    padding: 12px;
+  }
+
+  .slider-group label {
+    width: 60px;
+    font-size: 0.75rem;
+  }
+
+  .filters-grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 8px;
+  }
+
+  .transform-buttons {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .transform-btn {
+    padding: 10px 8px;
+  }
+}
