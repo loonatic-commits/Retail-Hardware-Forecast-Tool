@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapVault - Photo Scanner &amp; Album Manager</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/editor.css">
+  <link rel="stylesheet" href="css/gallery.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Top Navigation -->
+    <header id="app-header">
+      <div class="header-left">
+        <button id="sidebar-toggle" class="icon-btn" title="Menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <h1 class="app-title">SnapVault</h1>
+      </div>
+      <div class="header-center">
+        <nav id="main-nav">
+          <button class="nav-btn active" data-view="albums">Albums</button>
+          <button class="nav-btn" data-view="all-photos">All Photos</button>
+          <button class="nav-btn" data-view="scan">Scan</button>
+        </nav>
+      </div>
+      <div class="header-right">
+        <button id="search-btn" class="icon-btn" title="Search">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <button id="upload-btn" class="icon-btn primary-btn" title="Upload Photos">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Upload</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Search Bar (hidden by default) -->
+    <div id="search-bar" class="hidden">
+      <input type="text" id="search-input" placeholder="Search photos by name, date, or album...">
+      <button id="search-close" class="icon-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="hidden">
+      <div class="sidebar-header">
+        <h2>Albums</h2>
+        <button id="new-album-btn" class="small-btn">+ New Album</button>
+      </div>
+      <ul id="album-list" class="sidebar-list"></ul>
+      <div class="sidebar-footer">
+        <div class="storage-info">
+          <span id="photo-count">0 photos</span>
+          <span id="storage-used">0 MB used</span>
+        </div>
+        <button id="export-all-btn" class="small-btn">Export All</button>
+        <button id="clear-data-btn" class="small-btn danger">Clear All Data</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="main-content">
+      <!-- Albums View -->
+      <section id="albums-view" class="view active">
+        <div class="view-header">
+          <h2>My Albums</h2>
+          <button id="create-album-btn" class="action-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Album
+          </button>
+        </div>
+        <div id="albums-grid" class="albums-grid"></div>
+        <div id="albums-empty" class="empty-state hidden">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <h3>No albums yet</h3>
+          <p>Create your first album to organize your photos</p>
+          <button class="action-btn" onclick="app.createAlbumPrompt()">Create Album</button>
+        </div>
+      </section>
+
+      <!-- All Photos View -->
+      <section id="all-photos-view" class="view">
+        <div class="view-header">
+          <h2>All Photos</h2>
+          <div class="view-controls">
+            <select id="sort-select">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="name">By Name</option>
+            </select>
+            <button id="select-mode-btn" class="small-btn">Select</button>
+          </div>
+        </div>
+        <div id="photos-grid" class="photos-grid"></div>
+        <div id="photos-empty" class="empty-state hidden">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <h3>No photos yet</h3>
+          <p>Upload or scan photos to get started</p>
+          <button class="action-btn" onclick="document.getElementById('file-input').click()">Upload Photos</button>
+        </div>
+      </section>
+
+      <!-- Scan View -->
+      <section id="scan-view" class="view">
+        <div class="scan-container">
+          <div id="camera-container" class="camera-container">
+            <video id="camera-feed" autoplay playsinline></video>
+            <canvas id="scan-overlay" class="scan-overlay"></canvas>
+            <div id="scan-guide" class="scan-guide">
+              <div class="guide-corners">
+                <span class="corner tl"></span>
+                <span class="corner tr"></span>
+                <span class="corner bl"></span>
+                <span class="corner br"></span>
+              </div>
+              <p>Position photo within the frame</p>
+            </div>
+          </div>
+          <div class="scan-controls">
+            <button id="scan-capture-btn" class="capture-btn" title="Capture">
+              <span class="capture-ring"></span>
+            </button>
+            <button id="scan-switch-cam" class="icon-btn" title="Switch Camera">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 16v4H4v-4M1 12l3-3 3 3M23 12l-3 3-3-3"/><path d="M4 8V4h16v4"/></svg>
+            </button>
+          </div>
+          <div id="scan-preview" class="scan-preview hidden">
+            <img id="scan-result" alt="Scanned photo">
+            <div class="scan-preview-actions">
+              <button id="scan-retake" class="action-btn secondary">Retake</button>
+              <button id="scan-enhance" class="action-btn">Auto Enhance</button>
+              <button id="scan-save" class="action-btn primary">Save</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Album Detail View -->
+      <section id="album-detail-view" class="view">
+        <div class="view-header">
+          <button id="album-back-btn" class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          </button>
+          <h2 id="album-detail-title">Album</h2>
+          <div class="view-controls">
+            <button id="album-add-photos" class="small-btn">+ Add Photos</button>
+            <button id="album-edit-btn" class="icon-btn" title="Edit Album">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button id="album-delete-btn" class="icon-btn danger" title="Delete Album">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="album-photos-grid" class="photos-grid"></div>
+        <div id="album-photos-empty" class="empty-state hidden">
+          <p>This album is empty</p>
+          <button class="action-btn" id="album-empty-add">Add Photos</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Photo Viewer / Lightbox -->
+    <div id="photo-viewer" class="photo-viewer hidden">
+      <div class="viewer-header">
+        <button id="viewer-close" class="icon-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <span id="viewer-title" class="viewer-title"></span>
+        <div class="viewer-actions">
+          <button id="viewer-edit" class="icon-btn" title="Edit">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button id="viewer-info" class="icon-btn" title="Info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </button>
+          <button id="viewer-download" class="icon-btn" title="Download">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button id="viewer-delete" class="icon-btn danger" title="Delete">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+      <button id="viewer-prev" class="viewer-nav prev">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="viewer-image-container">
+        <img id="viewer-image" alt="Photo">
+      </div>
+      <button id="viewer-next" class="viewer-nav next">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <!-- Photo Info Panel -->
+      <div id="info-panel" class="info-panel hidden">
+        <h3>Photo Details</h3>
+        <div id="info-content"></div>
+      </div>
+    </div>
+
+    <!-- Photo Editor -->
+    <div id="photo-editor" class="photo-editor hidden">
+      <div class="editor-header">
+        <button id="editor-cancel" class="icon-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <span class="editor-title">Edit Photo</span>
+        <div class="editor-header-actions">
+          <button id="editor-reset" class="small-btn">Reset</button>
+          <button id="editor-save" class="small-btn primary">Save</button>
+        </div>
+      </div>
+      <div class="editor-canvas-area">
+        <canvas id="editor-canvas"></canvas>
+      </div>
+      <div class="editor-toolbar">
+        <div class="tool-tabs">
+          <button class="tool-tab active" data-tool="adjust">Adjust</button>
+          <button class="tool-tab" data-tool="filters">Filters</button>
+          <button class="tool-tab" data-tool="crop">Crop</button>
+          <button class="tool-tab" data-tool="transform">Transform</button>
+        </div>
+        <div id="tool-panel" class="tool-panel">
+          <!-- Adjust Panel -->
+          <div id="adjust-panel" class="tool-content active">
+            <div class="slider-group">
+              <label>Brightness</label>
+              <input type="range" id="brightness" min="-100" max="100" value="0">
+              <span class="slider-value">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Contrast</label>
+              <input type="range" id="contrast" min="-100" max="100" value="0">
+              <span class="slider-value">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Saturation</label>
+              <input type="range" id="saturation" min="-100" max="100" value="0">
+              <span class="slider-value">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Warmth</label>
+              <input type="range" id="warmth" min="-100" max="100" value="0">
+              <span class="slider-value">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Sharpness</label>
+              <input type="range" id="sharpness" min="0" max="100" value="0">
+              <span class="slider-value">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Vignette</label>
+              <input type="range" id="vignette" min="0" max="100" value="0">
+              <span class="slider-value">0</span>
+            </div>
+            <button id="auto-enhance-btn" class="action-btn full-width">Auto Enhance</button>
+          </div>
+          <!-- Filters Panel -->
+          <div id="filters-panel" class="tool-content">
+            <div class="filters-grid" id="filters-grid"></div>
+          </div>
+          <!-- Crop Panel -->
+          <div id="crop-panel" class="tool-content">
+            <div class="crop-ratios">
+              <button class="crop-ratio active" data-ratio="free">Free</button>
+              <button class="crop-ratio" data-ratio="1:1">1:1</button>
+              <button class="crop-ratio" data-ratio="4:3">4:3</button>
+              <button class="crop-ratio" data-ratio="3:2">3:2</button>
+              <button class="crop-ratio" data-ratio="16:9">16:9</button>
+            </div>
+            <button id="crop-apply" class="action-btn full-width">Apply Crop</button>
+          </div>
+          <!-- Transform Panel -->
+          <div id="transform-panel" class="tool-content">
+            <div class="transform-buttons">
+              <button id="rotate-left" class="transform-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                <span>Rotate Left</span>
+              </button>
+              <button id="rotate-right" class="transform-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg>
+                <span>Rotate Right</span>
+              </button>
+              <button id="flip-h" class="transform-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><polyline points="4 12 4 6 8 6"/><polyline points="20 12 20 6 16 6"/></svg>
+                <span>Flip H</span>
+              </button>
+              <button id="flip-v" class="transform-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/><polyline points="12 4 6 4 6 8"/><polyline points="12 20 6 20 6 16"/></svg>
+                <span>Flip V</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selection Toolbar (multi-select mode) -->
+    <div id="selection-toolbar" class="selection-toolbar hidden">
+      <span id="selection-count">0 selected</span>
+      <div class="selection-actions">
+        <button id="sel-add-album" class="small-btn">Add to Album</button>
+        <button id="sel-download" class="small-btn">Download</button>
+        <button id="sel-delete" class="small-btn danger">Delete</button>
+      </div>
+      <button id="sel-cancel" class="small-btn">Cancel</button>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div id="modal" class="modal">
+        <div id="modal-content"></div>
+      </div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="file-input" multiple accept="image/*" class="hidden">
+
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container"></div>
+  </div>
+
+  <script src="js/db.js"></script>
+  <script src="js/imageProcessor.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
