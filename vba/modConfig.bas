@@ -23,14 +23,16 @@ Public Const SHEET_GRADING_CACHE As String = "_GradingCache"   ' hidden
 Public Const LEGEND_ANCHOR_CELL As String = "Q1"   ' adjust if Q-column overlaps data
 
 ' --- Key figure labels (exact strings as they appear in Column B) ---
+' N-1 suffixed labels are prior-period data and are intentionally
+' NOT referenced anywhere in the suite.
 Public Const KF_BUSINESS_PLAN As String = "Business Plan Quantity"
 Public Const KF_SELL_IN As String = "Sell-In Quantity (Gross)"
 Public Const KF_BACK_ORDER As String = "Back Order Qty"
 Public Const KF_SO_FAR As String = "SO FAR"
-Public Const KF_FIELD_FCST_RAW As String = "Field Forecast"
+Public Const KF_FIELD_FCST_RAW As String = "Field Forecast"   ' not used by any pass
 Public Const KF_FIELD_FCST_FINAL As String = "Field Forecast Qty Final"
-Public Const KF_MARKETING_PRIMARY As String = "Marketing Fcst Qty N-1"
-Public Const KF_CONSENSUS As String = "Consensus Fcst Qty Final N-1"
+Public Const KF_MARKETING_PRIMARY As String = "Marketing"      ' not used by any pass
+Public Const KF_CONSENSUS As String = "Consensus"              ' not used by any pass
 Public Const KF_MARKETING_SECONDARY As String = "Marketing Forecast Qty"
 Public Const KF_OPPORTUNITY As String = "Opportunity Qty Final"
 Public Const KF_MARKETING_OPP_FCST As String = "Marketing Opportunity Fcst Qty"

@@ -9,14 +9,7 @@ Option Explicit
 ' FindModelBlocks
 '   Scans Column A. A new block starts when the column-A value
 '   changes (case-insensitive). The model name typically repeats
-'   on every row of a block in this workbook, so we group by
-'   contiguous run rather than by "first non-blank".
-'
-'   Returns a Collection of Dictionaries. Each dictionary has:
-'     name      : model name (string)
-'     startRow  : first row of the block
-'     endRow    : last row of the block
-'     keyRows   : Dictionary keyed by KF label -> row number
+'   on every row of a block in this workbook.
 ' -------------------------------------------------------------
 Public Function FindModelBlocks() As Collection
     Dim ws As Worksheet
@@ -37,18 +30,13 @@ Public Function FindModelBlocks() As Collection
         aVal = Trim$(CStr(ws.Cells(r, "A").Value))
         If Len(aVal) > 0 Then
             If Len(currentName) = 0 Then
-                ' First block
                 currentName = aVal
                 currentStart = r
             ElseIf StrComp(aVal, currentName, vbTextCompare) <> 0 Then
-                ' Name changed -> close prior block, start new one
                 result.Add BuildBlock(ws, currentName, currentStart, r - 1)
                 currentName = aVal
                 currentStart = r
             End If
-            ' Same name as current: still part of the current block, do nothing.
-        Else
-            ' Blank column A. Treat as part of the current block (rare).
         End If
     Next r
 
@@ -89,39 +77,16 @@ End Function
 
 ' -------------------------------------------------------------
 ' GetKeyRow
-'   1) Exact case-insensitive match on the dictionary.
-'   2) Fallback: case-insensitive prefix match against the
-'      label - e.g. configured KF_FIELD_FCST_FINAL of
-'      "Field Forecast Qty Final" matches sheet label
-'      "Field Forecast Qty Final N-1" if needed. Exact match
-'      wins over prefix.
-'   Returns 0 if nothing matches.
+'   Exact case-insensitive match only. No prefix fallback - that
+'   would risk silently matching an "N-1" prior-period row when
+'   the current row label happens to share a prefix.
+'   Returns 0 if no exact match.
 ' -------------------------------------------------------------
 Public Function GetKeyRow(ByVal block As Object, ByVal keyFigure As String) As Long
     Dim keyRows As Object
     Set keyRows = block("keyRows")
-
     If keyRows.Exists(keyFigure) Then
         GetKeyRow = keyRows(keyFigure)
-        Exit Function
-    End If
-
-    ' Prefix fallback: pick the shortest sheet label that starts with the configured key.
-    Dim bestKey As String, bestLen As Long
-    bestKey = ""
-    bestLen = 0
-    Dim k As Variant
-    For Each k In keyRows.Keys
-        If LCase$(Left$(CStr(k), Len(keyFigure))) = LCase$(keyFigure) Then
-            If bestLen = 0 Or Len(CStr(k)) < bestLen Then
-                bestKey = CStr(k)
-                bestLen = Len(CStr(k))
-            End If
-        End If
-    Next k
-
-    If Len(bestKey) > 0 Then
-        GetKeyRow = keyRows(bestKey)
     Else
         GetKeyRow = 0
     End If
@@ -129,10 +94,6 @@ End Function
 
 ' -------------------------------------------------------------
 ' GetMonthColumns
-'   Parses row-1 headers as dates from Column C onward.
-'   Returns a 2-D array sized (1 To n, 1 To 2):
-'     (i, 1) = column index
-'     (i, 2) = month date (first of the month)
 ' -------------------------------------------------------------
 Public Function GetMonthColumns(ws As Worksheet) As Variant
     Dim lastCol As Long
@@ -167,11 +128,6 @@ Public Function GetMonthColumns(ws As Worksheet) As Variant
     GetMonthColumns = out
 End Function
 
-' -------------------------------------------------------------
-' TryParseMonth
-'   Accepts true Date cells and strings like "26-Mar", "Mar 26",
-'   "MAR 2026", "2026-03", etc.
-' -------------------------------------------------------------
 Public Function TryParseMonth(ByVal v As Variant, ByRef outDate As Date) As Boolean
     If IsEmpty(v) Or IsNull(v) Then Exit Function
     If IsDate(v) Then
