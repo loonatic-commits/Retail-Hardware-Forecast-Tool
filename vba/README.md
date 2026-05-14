@@ -9,7 +9,7 @@ own module so failures stay isolated.
 |---|---|---|
 | `modConfig.bas` | `modConfig` | Constants, color initialization |
 | `modUtilities.bas` | `modUtilities` | Block detection, month parsing, accuracy math, grading cache |
-| `modMain.bas` | `modMain` | Orchestrator |
+| `modMain.bas` | `modMain` | Orchestrator + preflight check |
 | `modFieldGrading.bas` | `modFieldGrading` | Pass 1 - score FF accuracy |
 | `modFFvsBP.bas` | `modFFvsBP` | Pass 2 - seed Opportunity from FF or BP |
 | `modSOFOverride.bas` | `modSOFOverride` | Pass 3 - override next 3 months with SOF |
@@ -23,16 +23,29 @@ own module so failures stay isolated.
 1. Open the `.xlsm` workbook.
 2. `Alt+F11` to open the VBA editor.
 3. `File > Import File...` and import each `.bas` file under `vba/`.
-4. Ensure the Microsoft Scripting Runtime reference is enabled if you
-   prefer early binding (current code uses `CreateObject("Scripting.Dictionary")`
-   so no reference change is required).
-5. Run `Run_All_Passes` from `modMain`.
+4. Run `Run_All_Passes` from `modMain`.
+
+## Preflight check
+
+`Run_All_Passes` calls `PreflightCheck` first and aborts (without touching
+any cells) if any of these are missing or malformed:
+
+- `Consensus` sheet
+- `SOF` sheet
+- At least one parseable month header on `Consensus` row 1
+- At least one model block in Consensus column A
+- Per-block required key figures: Business Plan Quantity, Sell-In Quantity,
+  SO FAR, Field Forecast Qty Final, Opportunity Qty Final,
+  Available Inventory (Manual)
+- SOF month headers (columns B-D row 1) and at least one SOF model row
+
+All issues are reported in a single dialog so you can fix them in one pass.
 
 ## Build status
 
 - [x] `modConfig`
 - [x] `modUtilities`
-- [ ] `modMain` (orchestrator)
+- [x] `modMain` (orchestrator + preflight check)
 - [ ] `modFieldGrading` (Pass 1)
 - [ ] `modFFvsBP` (Pass 2)
 - [ ] `modSOFOverride` (Pass 3)
