@@ -7,13 +7,14 @@ Option Explicit
 
 ' -------------------------------------------------------------
 ' FindModelBlocks
-'   Scans Column A of the Consensus sheet for unique non-blank
-'   model names. Each model owns the rows from its name row
-'   through the row immediately before the next model name.
+'   Scans Column A. A new block starts when the column-A value
+'   changes (case-insensitive). The model name typically repeats
+'   on every row of a block in this workbook, so we group by
+'   contiguous run rather than by "first non-blank".
 '
 '   Returns a Collection of Dictionaries. Each dictionary has:
 '     name      : model name (string)
-'     startRow  : first row of the block (the model name row)
+'     startRow  : first row of the block
 '     endRow    : last row of the block
 '     keyRows   : Dictionary keyed by KF label -> row number
 ' -------------------------------------------------------------
@@ -35,11 +36,19 @@ Public Function FindModelBlocks() As Collection
         Dim aVal As String
         aVal = Trim$(CStr(ws.Cells(r, "A").Value))
         If Len(aVal) > 0 Then
-            If Len(currentName) > 0 Then
+            If Len(currentName) = 0 Then
+                ' First block
+                currentName = aVal
+                currentStart = r
+            ElseIf StrComp(aVal, currentName, vbTextCompare) <> 0 Then
+                ' Name changed -> close prior block, start new one
                 result.Add BuildBlock(ws, currentName, currentStart, r - 1)
+                currentName = aVal
+                currentStart = r
             End If
-            currentName = aVal
-            currentStart = r
+            ' Same name as current: still part of the current block, do nothing.
+        Else
+            ' Blank column A. Treat as part of the current block (rare).
         End If
     Next r
 
@@ -50,7 +59,8 @@ Public Function FindModelBlocks() As Collection
     Set FindModelBlocks = result
 End Function
 
-Private Function BuildBlock(ws As Worksheet, modelName As String, startRow As Long, endRow As Long) As Object
+Private Function BuildBlock(ws As Worksheet, ByVal modelName As String, _
+                            ByVal startRow As Long, ByVal endRow As Long) As Object
     Dim block As Object
     Set block = CreateObject("Scripting.Dictionary")
     block("name") = modelName
@@ -65,12 +75,9 @@ Private Function BuildBlock(ws As Worksheet, modelName As String, startRow As Lo
     For r = startRow To endRow
         label = Trim$(CStr(ws.Cells(r, "B").Value))
         If Len(label) > 0 Then
-            ' Last occurrence wins if duplicates appear (e.g. two "Marketing" rows)
-            ' so callers should use the more specific labels when both exist.
             If Not keyRows.Exists(label) Then
                 keyRows.Add label, r
             Else
-                ' Allow second-occurrence lookup under a suffixed key.
                 keyRows(label & "#2") = r
             End If
         End If
@@ -82,14 +89,39 @@ End Function
 
 ' -------------------------------------------------------------
 ' GetKeyRow
-'   Convenience accessor. Returns 0 if the key figure isn't found.
-'   ByVal on block lets callers pass a Variant from For Each.
+'   1) Exact case-insensitive match on the dictionary.
+'   2) Fallback: case-insensitive prefix match against the
+'      label - e.g. configured KF_FIELD_FCST_FINAL of
+'      "Field Forecast Qty Final" matches sheet label
+'      "Field Forecast Qty Final N-1" if needed. Exact match
+'      wins over prefix.
+'   Returns 0 if nothing matches.
 ' -------------------------------------------------------------
 Public Function GetKeyRow(ByVal block As Object, ByVal keyFigure As String) As Long
     Dim keyRows As Object
     Set keyRows = block("keyRows")
+
     If keyRows.Exists(keyFigure) Then
         GetKeyRow = keyRows(keyFigure)
+        Exit Function
+    End If
+
+    ' Prefix fallback: pick the shortest sheet label that starts with the configured key.
+    Dim bestKey As String, bestLen As Long
+    bestKey = ""
+    bestLen = 0
+    Dim k As Variant
+    For Each k In keyRows.Keys
+        If LCase$(Left$(CStr(k), Len(keyFigure))) = LCase$(keyFigure) Then
+            If bestLen = 0 Or Len(CStr(k)) < bestLen Then
+                bestKey = CStr(k)
+                bestLen = Len(CStr(k))
+            End If
+        End If
+    Next k
+
+    If Len(bestKey) > 0 Then
+        GetKeyRow = keyRows(bestKey)
     Else
         GetKeyRow = 0
     End If
@@ -137,7 +169,6 @@ End Function
 
 ' -------------------------------------------------------------
 ' TryParseMonth
-'   Attempts to interpret a header value as a calendar month.
 '   Accepts true Date cells and strings like "26-Mar", "Mar 26",
 '   "MAR 2026", "2026-03", etc.
 ' -------------------------------------------------------------
@@ -153,7 +184,6 @@ Public Function TryParseMonth(ByVal v As Variant, ByRef outDate As Date) As Bool
     s = Trim$(CStr(v))
     If Len(s) = 0 Then Exit Function
 
-    ' Try direct cast
     On Error Resume Next
     Dim d As Date
     d = CDate(s)
@@ -166,7 +196,6 @@ Public Function TryParseMonth(ByVal v As Variant, ByRef outDate As Date) As Bool
     Err.Clear
     On Error GoTo 0
 
-    ' Parse forms like "26-Mar" or "Mar-26" or "MAR 2026"
     Dim parts() As String
     Dim sep As String
     sep = " "
@@ -219,11 +248,6 @@ Private Function MonthFromName(ByVal s As String) As Long
     End Select
 End Function
 
-' -------------------------------------------------------------
-' CurrentMonthColumn
-'   Returns the column index whose parsed header matches the
-'   current calendar month on the given sheet. 0 if not found.
-' -------------------------------------------------------------
 Public Function CurrentMonthColumn(ws As Worksheet) As Long
     Dim months As Variant
     months = GetMonthColumns(ws)
@@ -241,13 +265,6 @@ Public Function CurrentMonthColumn(ws As Worksheet) As Long
     Next i
 End Function
 
-' -------------------------------------------------------------
-' CalcAccuracy
-'   Returns 1 - mean(abs(forecast - actual)/actual) over paired
-'   entries where actual is non-zero numeric and forecast is
-'   numeric. Returns ACCURACY_UNGRADABLE (-1) when fewer than 2
-'   valid pairs exist.
-' -------------------------------------------------------------
 Public Function CalcAccuracy(forecasts As Variant, actuals As Variant) As Double
     Dim lb As Long, ub As Long
     lb = LBound(forecasts)
@@ -281,10 +298,6 @@ Public Function CalcAccuracy(forecasts As Variant, actuals As Variant) As Double
     End If
 End Function
 
-' -------------------------------------------------------------
-' ApplyFillColor / ApplyFontColor
-'   Single-cell wrappers that null-check the range first.
-' -------------------------------------------------------------
 Public Sub ApplyFillColor(rng As Range, ByVal colorVal As Long)
     If rng Is Nothing Then Exit Sub
     rng.Interior.Color = colorVal
@@ -308,11 +321,6 @@ Public Sub ClearFill(rng As Range)
     rng.Interior.Pattern = xlNone
 End Sub
 
-' -------------------------------------------------------------
-' Grading cache - hidden sheet keyed by model name
-'   Column A: model name
-'   Column B: accuracy score
-' -------------------------------------------------------------
 Public Sub EnsureGradingCacheSheet()
     Dim ws As Worksheet
     On Error Resume Next
@@ -372,10 +380,6 @@ Private Function FindCacheRow(ws As Worksheet, ByVal modelName As String) As Lon
     Next r
 End Function
 
-' -------------------------------------------------------------
-' SafeNum
-'   Returns CDbl(v) if numeric, else returnDefault.
-' -------------------------------------------------------------
 Public Function SafeNum(ByVal v As Variant, Optional ByVal returnDefault As Double = 0) As Double
     If IsNumeric(v) And Not IsEmpty(v) Then
         SafeNum = CDbl(v)
