@@ -24,6 +24,7 @@ own module so failures stay isolated.
 2. `Alt+F11` to open the VBA editor.
 3. `File > Import File...` and import each `.bas` file under `vba/`.
 4. Run `Run_All_Passes` from `modMain`.
+5. To test on synthetic data, run `Run_All_Tests` from `modTests` (this overwrites the Consensus and SOF sheets - use a scratch workbook).
 
 ## Preflight check
 
@@ -46,10 +47,10 @@ All issues are reported in a single dialog so you can fix them in one pass.
 - [x] `modConfig`
 - [x] `modUtilities`
 - [x] `modMain` (orchestrator + preflight check)
-- [ ] `modFieldGrading` (Pass 1)
-- [ ] `modFFvsBP` (Pass 2)
-- [ ] `modSOFOverride` (Pass 3)
-- [ ] `modSoFarRunRate` (Pass 4)
-- [ ] `modInventoryPass` (Pass 5)
-- [ ] `modLegend` (Pass 6)
-- [ ] `modTests`
+- [x] `modFieldGrading` (Pass 1)
+- [x] `modFFvsBP` (Pass 2)
+- [x] `modSOFOverride` (Pass 3)
+- [x] `modSoFarRunRate` (Pass 4)
+- [x] `modInventoryPass` (Pass 5)
+- [x] `modLegend` (Pass 6)
+- [x] `modTests`
