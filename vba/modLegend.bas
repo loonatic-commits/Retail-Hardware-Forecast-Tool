@@ -3,14 +3,6 @@ Option Explicit
 
 ' =============================================================
 ' Pass 6 - Legend
-'
-' Writes a two-column self-documenting color legend in a corner
-' of the Consensus sheet, anchored at LEGEND_ANCHOR_CELL.
-' Column 1: bordered swatch with the relevant fill.
-' Column 2: plain-English description.
-'
-' All colors come from modConfig, so the legend stays in sync
-' with the source of truth.
 ' =============================================================
 
 Public Sub Run_Module_6_Legend()
@@ -22,7 +14,6 @@ Public Sub Run_Module_6_Legend()
     Dim anchor As Range
     Set anchor = ws.Range(LEGEND_ANCHOR_CELL)
 
-    ' Clear a generous block so stale entries don't linger.
     Dim clearRng As Range
     Set clearRng = ws.Range(anchor, anchor.Offset(40, 1))
     clearRng.Clear
@@ -46,13 +37,12 @@ Public Sub Run_Module_6_Legend()
     WriteSwatch ws, anchor.Offset(r, 0), CLR_SOF_LOW, "Pass 2 was 20%+ below SOF before override": r = r + 2
 
     WriteSection ws, anchor.Offset(r, 0), "SO FAR run rate (current month)": r = r + 1
-    WriteSwatch ws, anchor.Offset(r, 0), CLR_SOFAR_UPGRADE, "Tracking 5%+ ahead of prior forecast": r = r + 1
-    WriteSwatch ws, anchor.Offset(r, 0), CLR_SOFAR_DOWNGRADE, "Tracking 5%+ behind prior forecast": r = r + 2
+    WriteSwatch ws, anchor.Offset(r, 0), CLR_SOFAR_UPGRADE, "Tracking 50%+ ahead of prior forecast": r = r + 1
+    WriteSwatch ws, anchor.Offset(r, 0), CLR_SOFAR_DOWNGRADE, "Tracking 50%+ behind prior forecast": r = r + 2
 
     WriteSection ws, anchor.Offset(r, 0), "Inventory constraint (font color)": r = r + 1
-    WriteFontSwatch ws, anchor.Offset(r, 0), CLR_INV_CONSTRAINED_TEXT, "Cumulative Opportunity exceeds Available Inventory"
+    WriteFontSwatch ws, anchor.Offset(r, 0), CLR_INV_CONSTRAINED_TEXT, "Projected available inventory < that month's Opportunity"
 
-    ' Column widths so the legend is readable
     anchor.EntireColumn.ColumnWidth = 6
     anchor.Offset(0, 1).EntireColumn.ColumnWidth = 60
 
@@ -63,18 +53,18 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub WriteHeader(ws As Worksheet, anchor As Range, text As String)
+Private Sub WriteHeader(ws As Worksheet, anchor As Range, ByVal text As String)
     anchor.Value = text
     anchor.Font.Bold = True
     anchor.Font.Size = 12
 End Sub
 
-Private Sub WriteSection(ws As Worksheet, anchor As Range, text As String)
+Private Sub WriteSection(ws As Worksheet, anchor As Range, ByVal text As String)
     anchor.Value = text
     anchor.Font.Bold = True
 End Sub
 
-Private Sub WriteSwatch(ws As Worksheet, anchor As Range, colorVal As Long, description As String)
+Private Sub WriteSwatch(ws As Worksheet, anchor As Range, ByVal colorVal As Long, ByVal description As String)
     anchor.Value = ""
     anchor.Interior.Color = colorVal
     anchor.Borders.LineStyle = xlContinuous
@@ -83,7 +73,7 @@ Private Sub WriteSwatch(ws As Worksheet, anchor As Range, colorVal As Long, desc
     anchor.Offset(0, 1).HorizontalAlignment = xlLeft
 End Sub
 
-Private Sub WriteFontSwatch(ws As Worksheet, anchor As Range, colorVal As Long, description As String)
+Private Sub WriteFontSwatch(ws As Worksheet, anchor As Range, ByVal colorVal As Long, ByVal description As String)
     anchor.Value = "Abc"
     anchor.Font.Color = colorVal
     anchor.Font.Bold = True

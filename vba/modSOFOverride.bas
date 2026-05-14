@@ -4,17 +4,8 @@ Option Explicit
 ' =============================================================
 ' Pass 3 - SOF Override
 '
-' For each model, look up on the SOF sheet (exact name match).
-' Match SOF column headers to Consensus column headers by date.
-' For each matched month:
-'   - Read current Opportunity (the Pass 2 seed)
-'   - Read SOF value
-'   - deviation = (opportunity - sof) / sof
-'   - Overwrite Opportunity cell with SOF value
-'   - Color:
-'       deviation >  0.20  -> CLR_SOF_HIGH  (Pass 2 was 20%+ above SOF)
-'       deviation < -0.20  -> CLR_SOF_LOW   (Pass 2 was 20%+ below SOF)
-'       within +/-20%      -> preserve Pass 2 fill
+' Overwrites Opportunity with SOF for matched future months only.
+' Past months (col < current month) are never written.
 ' =============================================================
 
 Public Sub Run_Module_3_SOFOverride()
@@ -29,6 +20,13 @@ Public Sub Run_Module_3_SOFOverride()
     sofMonths = GetSofMonthColumns(wsSof)
     If IsEmpty(conMonths) Or IsEmpty(sofMonths) Then Exit Sub
 
+    Dim curCol As Long
+    curCol = CurrentMonthColumn(wsCon)
+    If curCol = 0 Then
+        Debug.Print "Module 3: no current month column - aborted."
+        Exit Sub
+    End If
+
     Dim blocks As Collection
     Set blocks = FindModelBlocks()
 
@@ -36,7 +34,7 @@ Public Sub Run_Module_3_SOFOverride()
     For Each b In blocks
         modelName = b("name")
         On Error GoTo BlockFail
-        OverrideModelFromSOF wsCon, wsSof, b, conMonths, sofMonths
+        OverrideModelFromSOF wsCon, wsSof, b, conMonths, sofMonths, curCol
 NextBlock:
         On Error GoTo Fail
     Next b
@@ -53,7 +51,8 @@ Fail:
 End Sub
 
 Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, ByVal block As Object, _
-                                 ByVal conMonths As Variant, ByVal sofMonths As Variant)
+                                 ByVal conMonths As Variant, ByVal sofMonths As Variant, _
+                                 ByVal curCol As Long)
     Dim oppRow As Long
     oppRow = GetKeyRow(block, KF_OPPORTUNITY)
     If oppRow = 0 Then
@@ -79,6 +78,9 @@ Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, ByVal b
                 Dim conCol As Long
                 conCol = CLng(conMonths(j, 1))
 
+                ' Refuse to overwrite past months.
+                If conCol < curCol Then Exit For
+
                 Dim oppCell As Range
                 Set oppCell = wsCon.Cells(oppRow, conCol)
 
@@ -89,13 +91,9 @@ Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, ByVal b
                 Dim priorFill As Variant
                 priorFill = GetFillColor(oppCell)
 
-                ' Overwrite first
                 oppCell.Value = sofVal
 
-                If sofVal = 0 Then
-                    ' Can't compute deviation - preserve prior fill (already set)
-                    ' (no-op)
-                Else
+                If sofVal <> 0 Then
                     Dim deviation As Double
                     deviation = (oppVal - sofVal) / sofVal
                     If deviation > SOF_VARIANCE Then
@@ -103,11 +101,7 @@ Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, ByVal b
                     ElseIf deviation < -SOF_VARIANCE Then
                         ApplyFillColor oppCell, CLR_SOF_LOW
                     Else
-                        ' Preserve Pass 2 fill - restore explicitly in case
-                        ' the value assignment cleared formatting.
-                        If IsNumeric(priorFill) Then
-                            ApplyFillColor oppCell, CLng(priorFill)
-                        End If
+                        If IsNumeric(priorFill) Then ApplyFillColor oppCell, CLng(priorFill)
                     End If
                 End If
 

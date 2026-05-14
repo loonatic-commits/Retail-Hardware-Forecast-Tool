@@ -4,14 +4,14 @@ Option Explicit
 ' =============================================================
 ' Pass 2 - FF vs BP
 '
-' Seeds the Opportunity Qty Final row for all 12 months by
-' choosing between Field Forecast Qty Final and Business Plan,
-' gated by the accuracy score persisted in Pass 1.
+' Seeds the Opportunity Qty Final row, but only from the current
+' month forward. Past months are reserved for sell-in vs field
+' forecast accuracy review and must not be overwritten.
 '
 '   FF > BP AND accuracy >= 0.80 -> write FF, light blue fill
-'   FF > BP AND accuracy <  0.80 -> write BP, soft red fill (FF unreliable)
+'   FF > BP AND accuracy <  0.80 -> write BP, soft red fill
 '   BP >= FF                     -> write BP, light purple fill
-'   accuracy = -1 (ungradable)   -> treat as below threshold (BP)
+'   accuracy = -1 (ungradable)   -> treat as below threshold
 ' =============================================================
 
 Public Sub Run_Module_2_FFvsBP()
@@ -24,6 +24,13 @@ Public Sub Run_Module_2_FFvsBP()
     months = GetMonthColumns(ws)
     If IsEmpty(months) Then Exit Sub
 
+    Dim curCol As Long
+    curCol = CurrentMonthColumn(ws)
+    If curCol = 0 Then
+        Debug.Print "Module 2: no column matches the current month - pass aborted to avoid overwriting past data."
+        Exit Sub
+    End If
+
     Dim blocks As Collection
     Set blocks = FindModelBlocks()
 
@@ -31,7 +38,7 @@ Public Sub Run_Module_2_FFvsBP()
     For Each b In blocks
         modelName = b("name")
         On Error GoTo BlockFail
-        SeedModelOpportunity ws, b, months
+        SeedModelOpportunity ws, b, months, curCol
 NextBlock:
         On Error GoTo Fail
     Next b
@@ -47,7 +54,8 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub SeedModelOpportunity(ws As Worksheet, ByVal block As Object, ByVal months As Variant)
+Private Sub SeedModelOpportunity(ws As Worksheet, ByVal block As Object, _
+                                 ByVal months As Variant, ByVal curCol As Long)
     Dim ffRow As Long, bpRow As Long, oppRow As Long
     ffRow = GetKeyRow(block, KF_FIELD_FCST_FINAL)
     bpRow = GetKeyRow(block, KF_BUSINESS_PLAN)
@@ -61,7 +69,7 @@ Private Sub SeedModelOpportunity(ws As Worksheet, ByVal block As Object, ByVal m
     Dim accuracy As Double
     accuracy = GetModelAccuracy(CStr(block("name")))
     Dim ffReliable As Boolean
-    ffReliable = (accuracy >= ACCURACY_GREEN)   ' sentinel -1 falls through as unreliable
+    ffReliable = (accuracy >= ACCURACY_GREEN)
 
     Dim i As Long, col As Long
     Dim ff As Double, bp As Double
@@ -69,22 +77,23 @@ Private Sub SeedModelOpportunity(ws As Worksheet, ByVal block As Object, ByVal m
 
     For i = LBound(months, 1) To UBound(months, 1)
         col = CLng(months(i, 1))
-        ff = SafeNum(ws.Cells(ffRow, col).Value)
-        bp = SafeNum(ws.Cells(bpRow, col).Value)
-        Set oppCell = ws.Cells(oppRow, col)
+        If col >= curCol Then
+            ff = SafeNum(ws.Cells(ffRow, col).Value)
+            bp = SafeNum(ws.Cells(bpRow, col).Value)
+            Set oppCell = ws.Cells(oppRow, col)
 
-        If ff > bp Then
-            If ffReliable Then
-                oppCell.Value = ff
-                ApplyFillColor oppCell, CLR_FFvsBP_FF_USED
+            If ff > bp Then
+                If ffReliable Then
+                    oppCell.Value = ff
+                    ApplyFillColor oppCell, CLR_FFvsBP_FF_USED
+                Else
+                    oppCell.Value = bp
+                    ApplyFillColor oppCell, CLR_FFvsBP_BP_FALLBACK
+                End If
             Else
                 oppCell.Value = bp
-                ApplyFillColor oppCell, CLR_FFvsBP_BP_FALLBACK
+                ApplyFillColor oppCell, CLR_FFvsBP_BP_USED
             End If
-        Else
-            ' BP >= FF
-            oppCell.Value = bp
-            ApplyFillColor oppCell, CLR_FFvsBP_BP_USED
         End If
     Next i
 End Sub

@@ -4,12 +4,21 @@ Option Explicit
 ' =============================================================
 ' Pass 5 - Inventory Pass
 '
-' Available Inventory (Manual) is a single starting pool that
-' depletes month over month. Walk forward chronologically; the
-' first month where cumulative Opportunity Qty Final demand
-' exceeds the pool, and every month after it, gets red font on
-' its Opportunity cell. Cell fills from earlier passes are
-' preserved - this pass touches font color only.
+' Available Inventory (Manual) row layout:
+'   - The current month's cell is the cumulative inventory we
+'     currently have on hand.
+'   - Future months' cells are INCOMING inventory arriving in
+'     that month (added to the running pool).
+'
+' Walk forward starting at the current month. At each month:
+'   1. Add that month's row value to the pool (current month
+'      adds the starting balance; future months add incoming).
+'   2. If pool < that month's Opportunity, flag the cell red.
+'   3. Subtract demand from the pool (can go negative; we keep
+'      tracking so later months stay flagged appropriately).
+'
+' Past months are never touched. This pass changes font color
+' only - fills from Passes 2/3/4 are preserved.
 ' =============================================================
 
 Public Sub Run_Module_5_InventoryPass()
@@ -22,6 +31,13 @@ Public Sub Run_Module_5_InventoryPass()
     months = GetMonthColumns(ws)
     If IsEmpty(months) Then Exit Sub
 
+    Dim curCol As Long
+    curCol = CurrentMonthColumn(ws)
+    If curCol = 0 Then
+        Debug.Print "Module 5: no current month column - aborted."
+        Exit Sub
+    End If
+
     Dim blocks As Collection
     Set blocks = FindModelBlocks()
 
@@ -29,7 +45,7 @@ Public Sub Run_Module_5_InventoryPass()
     For Each b In blocks
         modelName = b("name")
         On Error GoTo BlockFail
-        FlagInventoryForModel ws, b, months
+        FlagInventoryForModel ws, b, months, curCol
 NextBlock:
         On Error GoTo Fail
     Next b
@@ -45,7 +61,8 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub FlagInventoryForModel(ws As Worksheet, ByVal block As Object, ByVal months As Variant)
+Private Sub FlagInventoryForModel(ws As Worksheet, ByVal block As Object, _
+                                  ByVal months As Variant, ByVal curCol As Long)
     Dim oppRow As Long, invRow As Long
     oppRow = GetKeyRow(block, KF_OPPORTUNITY)
     invRow = GetKeyRow(block, KF_AVAIL_INV)
@@ -54,37 +71,23 @@ Private Sub FlagInventoryForModel(ws As Worksheet, ByVal block As Object, ByVal 
         Exit Sub
     End If
 
-    Dim pool As Double
-    pool = FirstNonBlankNumeric(ws, invRow, months)
-    If pool <= 0 Then Exit Sub
-
-    Dim cumulative As Double: cumulative = 0
-    Dim exceeded As Boolean: exceeded = False
-
+    Dim pool As Double: pool = 0
     Dim i As Long
     For i = LBound(months, 1) To UBound(months, 1)
         Dim col As Long
         col = CLng(months(i, 1))
-        cumulative = cumulative + SafeNum(ws.Cells(oppRow, col).Value)
-        If Not exceeded Then
-            If cumulative > pool Then exceeded = True
-        End If
-        If exceeded Then
-            ApplyFontColor ws.Cells(oppRow, col), CLR_INV_CONSTRAINED_TEXT
+        If col >= curCol Then
+            ' Add starting balance (current month) or incoming (future months).
+            pool = pool + SafeNum(ws.Cells(invRow, col).Value)
+
+            Dim demand As Double
+            demand = SafeNum(ws.Cells(oppRow, col).Value)
+
+            If pool < demand Then
+                ApplyFontColor ws.Cells(oppRow, col), CLR_INV_CONSTRAINED_TEXT
+            End If
+
+            pool = pool - demand
         End If
     Next i
 End Sub
-
-Private Function FirstNonBlankNumeric(ws As Worksheet, ByVal row As Long, ByVal months As Variant) As Double
-    Dim i As Long, col As Long, v As Variant
-    For i = LBound(months, 1) To UBound(months, 1)
-        col = CLng(months(i, 1))
-        v = ws.Cells(row, col).Value
-        If IsNumeric(v) And Not IsEmpty(v) Then
-            If CDbl(v) <> 0 Then
-                FirstNonBlankNumeric = CDbl(v)
-                Exit Function
-            End If
-        End If
-    Next i
-End Function
