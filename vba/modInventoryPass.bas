@@ -45,7 +45,7 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub FlagInventoryForModel(ws As Worksheet, block As Object, months As Variant)
+Private Sub FlagInventoryForModel(ws As Worksheet, ByVal block As Object, ByVal months As Variant)
     Dim oppRow As Long, invRow As Long
     oppRow = GetKeyRow(block, KF_OPPORTUNITY)
     invRow = GetKeyRow(block, KF_AVAIL_INV)
@@ -75,7 +75,7 @@ Private Sub FlagInventoryForModel(ws As Worksheet, block As Object, months As Va
     Next i
 End Sub
 
-Private Function FirstNonBlankNumeric(ws As Worksheet, row As Long, months As Variant) As Double
+Private Function FirstNonBlankNumeric(ws As Worksheet, ByVal row As Long, ByVal months As Variant) As Double
     Dim i As Long, col As Long, v As Variant
     For i = LBound(months, 1) To UBound(months, 1)
         col = CLng(months(i, 1))

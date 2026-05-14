@@ -52,8 +52,8 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, block As Object, _
-                                 conMonths As Variant, sofMonths As Variant)
+Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, ByVal block As Object, _
+                                 ByVal conMonths As Variant, ByVal sofMonths As Variant)
     Dim oppRow As Long
     oppRow = GetKeyRow(block, KF_OPPORTUNITY)
     If oppRow = 0 Then
@@ -117,7 +117,7 @@ Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, block A
     Next i
 End Sub
 
-Private Function FindSofRow(wsSof As Worksheet, modelName As String) As Long
+Private Function FindSofRow(wsSof As Worksheet, ByVal modelName As String) As Long
     Dim lastRow As Long
     lastRow = wsSof.Cells(wsSof.Rows.Count, "A").End(xlUp).Row
     Dim r As Long

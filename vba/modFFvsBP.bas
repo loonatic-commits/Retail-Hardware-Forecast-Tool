@@ -47,7 +47,7 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub SeedModelOpportunity(ws As Worksheet, block As Object, months As Variant)
+Private Sub SeedModelOpportunity(ws As Worksheet, ByVal block As Object, ByVal months As Variant)
     Dim ffRow As Long, bpRow As Long, oppRow As Long
     ffRow = GetKeyRow(block, KF_FIELD_FCST_FINAL)
     bpRow = GetKeyRow(block, KF_BUSINESS_PLAN)

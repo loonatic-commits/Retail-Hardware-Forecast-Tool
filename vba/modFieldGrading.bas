@@ -50,7 +50,7 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub GradeModel(ws As Worksheet, block As Object)
+Private Sub GradeModel(ws As Worksheet, ByVal block As Object)
     Dim ffRow As Long, siRow As Long
     ffRow = GetKeyRow(block, KF_FIELD_FCST_FINAL)
     siRow = GetKeyRow(block, KF_SELL_IN)

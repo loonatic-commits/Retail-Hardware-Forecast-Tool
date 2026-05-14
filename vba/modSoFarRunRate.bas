@@ -52,7 +52,7 @@ Fail:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Private Sub ApplyRunRateToModel(ws As Worksheet, block As Object, curCol As Long)
+Private Sub ApplyRunRateToModel(ws As Worksheet, ByVal block As Object, ByVal curCol As Long)
     Dim soFarRow As Long, oppRow As Long
     soFarRow = GetKeyRow(block, KF_SO_FAR)
     oppRow = GetKeyRow(block, KF_OPPORTUNITY)

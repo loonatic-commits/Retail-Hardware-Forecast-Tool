@@ -83,8 +83,9 @@ End Function
 ' -------------------------------------------------------------
 ' GetKeyRow
 '   Convenience accessor. Returns 0 if the key figure isn't found.
+'   ByVal on block lets callers pass a Variant from For Each.
 ' -------------------------------------------------------------
-Public Function GetKeyRow(block As Object, keyFigure As String) As Long
+Public Function GetKeyRow(ByVal block As Object, ByVal keyFigure As String) As Long
     Dim keyRows As Object
     Set keyRows = block("keyRows")
     If keyRows.Exists(keyFigure) Then
@@ -140,7 +141,7 @@ End Function
 '   Accepts true Date cells and strings like "26-Mar", "Mar 26",
 '   "MAR 2026", "2026-03", etc.
 ' -------------------------------------------------------------
-Public Function TryParseMonth(v As Variant, ByRef outDate As Date) As Boolean
+Public Function TryParseMonth(ByVal v As Variant, ByRef outDate As Date) As Boolean
     If IsEmpty(v) Or IsNull(v) Then Exit Function
     If IsDate(v) Then
         outDate = CDate(v)
@@ -190,7 +191,7 @@ Public Function TryParseMonth(v As Variant, ByRef outDate As Date) As Boolean
     End If
 End Function
 
-Private Function NormalizeYear(y As Long) As Long
+Private Function NormalizeYear(ByVal y As Long) As Long
     If y < 100 Then
         NormalizeYear = 2000 + y
     Else
@@ -198,7 +199,7 @@ Private Function NormalizeYear(y As Long) As Long
     End If
 End Function
 
-Private Function MonthFromName(s As String) As Long
+Private Function MonthFromName(ByVal s As String) As Long
     Dim u As String
     u = UCase$(Left$(s, 3))
     Select Case u
@@ -284,12 +285,12 @@ End Function
 ' ApplyFillColor / ApplyFontColor
 '   Single-cell wrappers that null-check the range first.
 ' -------------------------------------------------------------
-Public Sub ApplyFillColor(rng As Range, colorVal As Long)
+Public Sub ApplyFillColor(rng As Range, ByVal colorVal As Long)
     If rng Is Nothing Then Exit Sub
     rng.Interior.Color = colorVal
 End Sub
 
-Public Sub ApplyFontColor(rng As Range, colorVal As Long)
+Public Sub ApplyFontColor(rng As Range, ByVal colorVal As Long)
     If rng Is Nothing Then Exit Sub
     rng.Font.Color = colorVal
 End Sub
@@ -326,7 +327,7 @@ Public Sub EnsureGradingCacheSheet()
     End If
 End Sub
 
-Public Sub SetModelAccuracy(modelName As String, value As Double)
+Public Sub SetModelAccuracy(ByVal modelName As String, ByVal value As Double)
     EnsureGradingCacheSheet
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Worksheets(SHEET_GRADING_CACHE)
@@ -340,7 +341,7 @@ Public Sub SetModelAccuracy(modelName As String, value As Double)
     ws.Cells(r, 2).Value = value
 End Sub
 
-Public Function GetModelAccuracy(modelName As String) As Double
+Public Function GetModelAccuracy(ByVal modelName As String) As Double
     EnsureGradingCacheSheet
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Worksheets(SHEET_GRADING_CACHE)
@@ -359,7 +360,7 @@ Public Function GetModelAccuracy(modelName As String) As Double
     End If
 End Function
 
-Private Function FindCacheRow(ws As Worksheet, modelName As String) As Long
+Private Function FindCacheRow(ws As Worksheet, ByVal modelName As String) As Long
     Dim lastRow As Long
     lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
     Dim r As Long
@@ -375,7 +376,7 @@ End Function
 ' SafeNum
 '   Returns CDbl(v) if numeric, else returnDefault.
 ' -------------------------------------------------------------
-Public Function SafeNum(v As Variant, Optional returnDefault As Double = 0) As Double
+Public Function SafeNum(ByVal v As Variant, Optional ByVal returnDefault As Double = 0) As Double
     If IsNumeric(v) And Not IsEmpty(v) Then
         SafeNum = CDbl(v)
     Else
@@ -383,7 +384,7 @@ Public Function SafeNum(v As Variant, Optional returnDefault As Double = 0) As D
     End If
 End Function
 
-Public Function IsBlankOrZero(v As Variant) As Boolean
+Public Function IsBlankOrZero(ByVal v As Variant) As Boolean
     If IsEmpty(v) Or IsNull(v) Then
         IsBlankOrZero = True
         Exit Function
