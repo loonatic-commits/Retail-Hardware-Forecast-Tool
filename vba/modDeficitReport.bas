@@ -4,19 +4,21 @@ Option Explicit
 ' =============================================================
 ' modDeficitReport - excess inventory report (all SKUs)
 '
-' For every model:
-'   deficit = max(Consensus Fcst Qty Final N-1 - Sell-In Qty Gross, 0)
-'             at 26-Apr
+' Month-dynamic. No hardcoded month constants - everything is
+' derived from today's calendar date, so the same file works
+' every month without editing.
 '
-' Then project remaining inventory after fulfilling 26-May and
-' 26-Jun Opportunity Qty Final values, and report how much of
-' the Apr deficit (if any) the excess can cover.
+' Comparison month: the most recent completed month
+'                   = current calendar month - 1
+'   For each model:
+'     deficit = max(Consensus Fcst Qty Final N-1
+'                   - Sell-In Qty (Gross), 0)
 '
-' Excess inventory model (matches the agreed inventory logic):
-'   pool  = Available Inventory @ 26-May (on-hand today)
-'   pool -= Opportunity @ 26-May
-'   pool += Available Inventory @ 26-Jun  (incoming)
-'   pool -= Opportunity @ 26-Jun
+' Excess projection months: current month and next month.
+'   pool  = Available Inventory @ current   (on-hand today)
+'   pool -= Opportunity @ current
+'   pool += Available Inventory @ current+1 (incoming)
+'   pool -= Opportunity @ current+1
 '   excess = max(pool, 0)
 '
 ' Coverage:
@@ -24,15 +26,14 @@ Option Explicit
 '   else            : covered = min(excess, deficit)
 '                     coverage_pct = covered / deficit
 '
-' Row coloring:
-'   100% (incl. no deficit) green
-'   partial                 yellow
-'   0%                      red
+' Row coloring: 100% green, partial yellow, 0% red
+'
+' Sheet name includes the comparison month (e.g.
+' "Apr Deficit Report", "May Deficit Report"), so prior
+' months' reports are preserved across runs.
 ' =============================================================
 
-Private Const REPORT_SHEET As String = "Apr Deficit Report"
-
-Public Sub Build_April_Deficit_Report()
+Public Sub Build_Deficit_Report()
     On Error GoTo Fail
 
     InitColors
@@ -47,27 +48,45 @@ Public Sub Build_April_Deficit_Report()
         Exit Sub
     End If
 
-    Dim aprCol As Long: aprCol = FindMonthCol(months, 2026, 4)
-    Dim mayCol As Long: mayCol = FindMonthCol(months, 2026, 5)
-    Dim junCol As Long: junCol = FindMonthCol(months, 2026, 6)
-    If aprCol = 0 Or mayCol = 0 Or junCol = 0 Then
-        MsgBox "Could not find one or more of 26-Apr / 26-May / 26-Jun columns.", vbCritical
+    ' --- Derive the three target dates from today ---
+    Dim today As Date: today = Date
+    Dim curDate As Date: curDate = DateSerial(Year(today), Month(today), 1)
+    Dim prevDate As Date: prevDate = DateSerial(Year(today), Month(today) - 1, 1)
+    Dim nextDate As Date: nextDate = DateSerial(Year(today), Month(today) + 1, 1)
+
+    Dim prevCol As Long: prevCol = FindMonthCol(months, Year(prevDate), Month(prevDate))
+    Dim curCol As Long: curCol = FindMonthCol(months, Year(curDate), Month(curDate))
+    Dim nextCol As Long: nextCol = FindMonthCol(months, Year(nextDate), Month(nextDate))
+
+    If prevCol = 0 Or curCol = 0 Or nextCol = 0 Then
+        MsgBox "Could not find one or more of the required month columns " & _
+               "(" & Format(prevDate, "yy-mmm") & ", " & _
+               Format(curDate, "yy-mmm") & ", " & _
+               Format(nextDate, "yy-mmm") & ") on '" & SHEET_CONSENSUS & "'.", vbCritical
         Exit Sub
     End If
 
+    Dim prevLabel As String, curLabel As String, nextLabel As String
+    prevLabel = Format(prevDate, "yy-mmm")
+    curLabel = Format(curDate, "yy-mmm")
+    nextLabel = Format(nextDate, "yy-mmm")
+
+    Dim sheetName As String
+    sheetName = Format(prevDate, "mmm") & " Deficit Report"
+
     Dim rep As Worksheet
-    Set rep = EnsureReportSheet()
+    Set rep = EnsureReportSheet(sheetName)
     rep.Cells.Clear
 
     rep.Cells(1, 1).Value = "Model"
-    rep.Cells(1, 2).Value = "Sell-In (Gross) 26-Apr"
-    rep.Cells(1, 3).Value = "Consensus Fcst Final N-1 26-Apr"
+    rep.Cells(1, 2).Value = "Sell-In (Gross) " & prevLabel
+    rep.Cells(1, 3).Value = "Consensus Fcst Final N-1 " & prevLabel
     rep.Cells(1, 4).Value = "Deficit"
-    rep.Cells(1, 5).Value = "Avail Inv on hand (26-May)"
-    rep.Cells(1, 6).Value = "Opportunity 26-May"
-    rep.Cells(1, 7).Value = "Incoming Inv 26-Jun"
-    rep.Cells(1, 8).Value = "Opportunity 26-Jun"
-    rep.Cells(1, 9).Value = "Excess after May+Jun"
+    rep.Cells(1, 5).Value = "Avail Inv on hand (" & curLabel & ")"
+    rep.Cells(1, 6).Value = "Opportunity " & curLabel
+    rep.Cells(1, 7).Value = "Incoming Inv " & nextLabel
+    rep.Cells(1, 8).Value = "Opportunity " & nextLabel
+    rep.Cells(1, 9).Value = "Excess after " & curLabel & "+" & nextLabel
     rep.Cells(1, 10).Value = "Deficit covered"
     rep.Cells(1, 11).Value = "Coverage %"
     rep.Range("A1:K1").Font.Bold = True
@@ -94,22 +113,22 @@ Public Sub Build_April_Deficit_Report()
 
         Dim sellIn As Double, consensus As Double
         sellIn = 0: consensus = 0
-        If sellInRow > 0 Then sellIn = SafeNum(ws.Cells(sellInRow, aprCol).Value)
-        If consensusRow > 0 Then consensus = SafeNum(ws.Cells(consensusRow, aprCol).Value)
+        If sellInRow > 0 Then sellIn = SafeNum(ws.Cells(sellInRow, prevCol).Value)
+        If consensusRow > 0 Then consensus = SafeNum(ws.Cells(consensusRow, prevCol).Value)
 
         Dim deficit As Double
         deficit = consensus - sellIn
         If deficit < 0 Then deficit = 0
         If deficit > 0 Then deficitCount = deficitCount + 1
 
-        Dim invMay As Double, oppMay As Double, invJun As Double, oppJun As Double
-        If invRow > 0 Then invMay = SafeNum(ws.Cells(invRow, mayCol).Value)
-        If invRow > 0 Then invJun = SafeNum(ws.Cells(invRow, junCol).Value)
-        If oppRow > 0 Then oppMay = SafeNum(ws.Cells(oppRow, mayCol).Value)
-        If oppRow > 0 Then oppJun = SafeNum(ws.Cells(oppRow, junCol).Value)
+        Dim invCur As Double, oppCur As Double, invNext As Double, oppNext As Double
+        If invRow > 0 Then invCur = SafeNum(ws.Cells(invRow, curCol).Value)
+        If invRow > 0 Then invNext = SafeNum(ws.Cells(invRow, nextCol).Value)
+        If oppRow > 0 Then oppCur = SafeNum(ws.Cells(oppRow, curCol).Value)
+        If oppRow > 0 Then oppNext = SafeNum(ws.Cells(oppRow, nextCol).Value)
 
         Dim pool As Double
-        pool = invMay - oppMay + invJun - oppJun
+        pool = invCur - oppCur + invNext - oppNext
 
         Dim excess As Double
         excess = pool
@@ -118,7 +137,7 @@ Public Sub Build_April_Deficit_Report()
         Dim covered As Double, pct As Double
         If deficit = 0 Then
             covered = 0
-            pct = 1#                ' no deficit -> fully covered by definition
+            pct = 1#
         Else
             covered = excess
             If covered > deficit Then covered = deficit
@@ -129,11 +148,11 @@ Public Sub Build_April_Deficit_Report()
         rep.Cells(outRow, 2).Value = sellIn
         rep.Cells(outRow, 3).Value = consensus
         rep.Cells(outRow, 4).Value = deficit
-        rep.Cells(outRow, 5).Value = invMay
-        rep.Cells(outRow, 6).Value = oppMay
-        rep.Cells(outRow, 7).Value = invJun
-        rep.Cells(outRow, 8).Value = oppJun
-        rep.Cells(outRow, 9).Value = pool        ' signed projection
+        rep.Cells(outRow, 5).Value = invCur
+        rep.Cells(outRow, 6).Value = oppCur
+        rep.Cells(outRow, 7).Value = invNext
+        rep.Cells(outRow, 8).Value = oppNext
+        rep.Cells(outRow, 9).Value = pool
         rep.Cells(outRow, 10).Value = covered
         rep.Cells(outRow, 11).Value = pct
         rep.Cells(outRow, 11).NumberFormat = "0.0%"
@@ -159,8 +178,8 @@ NextBlock:
     rep.Activate
     rep.Range("A1").Select
 
-    MsgBox (outRow - 2) & " model(s) reported. " & deficitCount & " had a 26-Apr deficit.", _
-           vbInformation, "Apr Deficit Report"
+    MsgBox (outRow - 2) & " model(s) reported for " & prevLabel & ". " & _
+           deficitCount & " had a deficit.", vbInformation, sheetName
     Exit Sub
 
 BlockFail:
@@ -168,7 +187,12 @@ BlockFail:
     Resume NextBlock
 
 Fail:
-    MsgBox "Build_April_Deficit_Report failed: " & Err.Description, vbCritical
+    MsgBox "Build_Deficit_Report failed: " & Err.Description, vbCritical
+End Sub
+
+' Backwards-compatible alias so anything that calls the old name still works.
+Public Sub Build_April_Deficit_Report()
+    Build_Deficit_Report
 End Sub
 
 Private Function FindMonthCol(months As Variant, ByVal y As Long, ByVal m As Long) As Long
@@ -182,14 +206,14 @@ Private Function FindMonthCol(months As Variant, ByVal y As Long, ByVal m As Lon
     Next i
 End Function
 
-Private Function EnsureReportSheet() As Worksheet
+Private Function EnsureReportSheet(ByVal name As String) As Worksheet
     Dim w As Worksheet
     On Error Resume Next
-    Set w = ThisWorkbook.Worksheets(REPORT_SHEET)
+    Set w = ThisWorkbook.Worksheets(name)
     On Error GoTo 0
     If w Is Nothing Then
         Set w = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
-        w.Name = REPORT_SHEET
+        w.Name = name
     End If
     Set EnsureReportSheet = w
 End Function
