@@ -3,8 +3,19 @@ Option Explicit
 
 ' =============================================================
 ' modMain - orchestrator
-'   Run_All_Passes runs the six passes in order, with a
-'   preflight check first to fail fast on missing structure.
+'
+' Pass order:
+'   1  Field grading      accuracy score + label-cell grade fill
+'   2  FF vs BP           seeds N..N+2 (values only)
+'   3  SOF override       SOF months (values only)
+'   4  SO FAR run rate    current month (values only)
+'   5  Forecast selection constrained path + Consensus N-1 hold
+'   6  Inventory          red font where projected inv < demand
+'   7  Info block         decisions, diagnostics, dissonance fill
+'
+' The old color-coding module (legend) is gone. The only
+' formatting written now is the Pass 1 grade fill, the Pass 6
+' inventory font, and the info block's dissonance fill.
 ' =============================================================
 
 Public Sub Run_All_Passes()
@@ -18,8 +29,6 @@ Public Sub Run_All_Passes()
 
     InitColors
 
-    ' --- Preflight check: bail before mutating anything if the
-    '     workbook isn't shaped the way the passes expect. ---
     Dim issues As Collection
     Set issues = PreflightCheck()
     If issues.Count > 0 Then
@@ -40,8 +49,9 @@ Public Sub Run_All_Passes()
     Run_Module_2_FFvsBP
     Run_Module_3_SOFOverride
     Run_Module_4_SoFarRunRate
+    Run_Forecast_Selection
     Run_Module_5_InventoryPass
-    Run_Module_6_Legend
+    Run_Info_Block
 
     Application.ScreenUpdating = screenWasOn
     Application.EnableEvents = eventsWereOn
@@ -63,16 +73,12 @@ End Sub
 
 ' -------------------------------------------------------------
 ' PreflightCheck
-'   Validates that the workbook has everything the passes need
-'   before any mutation happens. Returns a Collection of
-'   human-readable issue strings; empty means OK to run.
+'   Validates workbook shape before any mutation. Returns a
+'   Collection of issue strings; empty means OK to run.
 '
-'   Checks:
-'     - Consensus and SOF sheets exist
-'     - Consensus has parseable month headers (>= 1)
-'     - At least one model block in Consensus
-'     - Each block has the required key figures
-'     - SOF has model rows and parseable month headers
+'   Field Forecast Qty N-1 and Consensus Fcst Qty Final N-1 are
+'   NOT required here - a model missing them is handled per-model
+'   by the selection pass rather than blocking the whole run.
 ' -------------------------------------------------------------
 Public Function PreflightCheck() As Collection
     Dim issues As New Collection
@@ -144,8 +150,7 @@ End Function
 
 ' -------------------------------------------------------------
 ' GetSofMonthColumns
-'   Parses SOF row-1 headers from column B onward. Returns the
-'   same shape as modUtilities.GetMonthColumns.
+'   Parses SOF row-1 headers from column B onward.
 ' -------------------------------------------------------------
 Public Function GetSofMonthColumns(ws As Worksheet) As Variant
     Dim lastCol As Long
@@ -187,23 +192,3 @@ Private Function FormatIssues(issues As Collection) As String
     Next v
     FormatIssues = s
 End Function
-
-' --- Pass stubs ---------------------------------------------
-' These exist so Run_All_Passes can be compiled and run even
-' before each pass module is filled in. Each one will be
-' replaced by its real implementation in modFieldGrading,
-' modFFvsBP, etc. The stubs below just no-op.
-' VBA resolves to the implementation in the dedicated module
-' once it's imported, since module-level subs share a global
-' namespace. If both exist VBA will refuse to compile, so
-' DELETE these stubs before importing the real modules.
-' -------------------------------------------------------------
-#Const STUBS_ENABLED = True
-#If STUBS_ENABLED Then
-Public Sub Run_Module_1_FieldGrading_STUB(): Debug.Print "Pass 1 stub": End Sub
-Public Sub Run_Module_2_FFvsBP_STUB(): Debug.Print "Pass 2 stub": End Sub
-Public Sub Run_Module_3_SOFOverride_STUB(): Debug.Print "Pass 3 stub": End Sub
-Public Sub Run_Module_4_SoFarRunRate_STUB(): Debug.Print "Pass 4 stub": End Sub
-Public Sub Run_Module_5_InventoryPass_STUB(): Debug.Print "Pass 5 stub": End Sub
-Public Sub Run_Module_6_Legend_STUB(): Debug.Print "Pass 6 stub": End Sub
-#End If

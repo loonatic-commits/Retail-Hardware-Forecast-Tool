@@ -4,8 +4,11 @@ Option Explicit
 ' =============================================================
 ' Pass 3 - SOF Override
 '
-' Overwrites Opportunity with SOF for matched future months only.
-' Past months (col < current month) are never written.
+' Overwrites Opportunity with SOF for matched future months.
+' Past months are never written.
+'
+' Writes values only. All cell fills were removed with the
+' color-coding module.
 ' =============================================================
 
 Public Sub Run_Module_3_SOFOverride()
@@ -81,30 +84,7 @@ Private Sub OverrideModelFromSOF(wsCon As Worksheet, wsSof As Worksheet, ByVal b
                 ' Refuse to overwrite past months.
                 If conCol < curCol Then Exit For
 
-                Dim oppCell As Range
-                Set oppCell = wsCon.Cells(oppRow, conCol)
-
-                Dim sofVal As Double, oppVal As Double
-                sofVal = SafeNum(wsSof.Cells(sofRow, sofCol).Value)
-                oppVal = SafeNum(oppCell.Value)
-
-                Dim priorFill As Variant
-                priorFill = GetFillColor(oppCell)
-
-                oppCell.Value = sofVal
-
-                If sofVal <> 0 Then
-                    Dim deviation As Double
-                    deviation = (oppVal - sofVal) / sofVal
-                    If deviation > SOF_VARIANCE Then
-                        ApplyFillColor oppCell, CLR_SOF_HIGH
-                    ElseIf deviation < -SOF_VARIANCE Then
-                        ApplyFillColor oppCell, CLR_SOF_LOW
-                    Else
-                        If IsNumeric(priorFill) Then ApplyFillColor oppCell, CLng(priorFill)
-                    End If
-                End If
-
+                wsCon.Cells(oppRow, conCol).Value = SafeNum(wsSof.Cells(sofRow, sofCol).Value)
                 Exit For
             End If
         Next j

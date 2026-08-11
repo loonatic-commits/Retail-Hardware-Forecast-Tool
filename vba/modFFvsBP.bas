@@ -4,14 +4,21 @@ Option Explicit
 ' =============================================================
 ' Pass 2 - FF vs BP
 '
-' Seeds the Opportunity Qty Final row, but only from the current
-' month forward. Past months are reserved for sell-in vs field
-' forecast accuracy review and must not be overwritten.
+' Seeds the Opportunity Qty Final row from the current month
+' forward. Past months are reserved for sell-in vs field
+' forecast accuracy review and are never overwritten.
 '
-'   FF > BP AND accuracy >= 0.80 -> write FF, light blue fill
-'   FF > BP AND accuracy <  0.80 -> write BP, soft red fill
-'   BP >= FF                     -> write BP, light purple fill
+' This pass now owns N..N+2 only in practice - the forecast
+' selection pass overwrites N+3 onward (and N..N+4 when the
+' model is supply constrained).
+'
+'   FF > BP AND accuracy >= 0.80 -> write FF
+'   FF > BP AND accuracy <  0.80 -> write BP (FF unreliable)
+'   BP >= FF                     -> write BP
 '   accuracy = -1 (ungradable)   -> treat as below threshold
+'
+' Writes values only. All cell fills were removed with the
+' color-coding module.
 ' =============================================================
 
 Public Sub Run_Module_2_FFvsBP()
@@ -73,26 +80,17 @@ Private Sub SeedModelOpportunity(ws As Worksheet, ByVal block As Object, _
 
     Dim i As Long, col As Long
     Dim ff As Double, bp As Double
-    Dim oppCell As Range
 
     For i = LBound(months, 1) To UBound(months, 1)
         col = CLng(months(i, 1))
         If col >= curCol Then
             ff = SafeNum(ws.Cells(ffRow, col).Value)
             bp = SafeNum(ws.Cells(bpRow, col).Value)
-            Set oppCell = ws.Cells(oppRow, col)
 
-            If ff > bp Then
-                If ffReliable Then
-                    oppCell.Value = ff
-                    ApplyFillColor oppCell, CLR_FFvsBP_FF_USED
-                Else
-                    oppCell.Value = bp
-                    ApplyFillColor oppCell, CLR_FFvsBP_BP_FALLBACK
-                End If
+            If ff > bp And ffReliable Then
+                ws.Cells(oppRow, col).Value = ff
             Else
-                oppCell.Value = bp
-                ApplyFillColor oppCell, CLR_FFvsBP_BP_USED
+                ws.Cells(oppRow, col).Value = bp
             End If
         End If
     Next i
