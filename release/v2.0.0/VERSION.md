@@ -1,0 +1,166 @@
+# VBA Demand Forecasting Suite — v2.0.0
+
+**Released:** 2026-08-11
+**Branch:** `claude/vba-demand-forecasting-QIF7f`
+
+Drop-in module set for the consensus forecast workbook. Import every `.bas`
+in this folder, then run `Run_All_Passes`.
+
+---
+
+## Import
+
+1. Open your `.xlsm` workbook and press `Alt+F11`.
+2. **Remove every existing `mod*` module first** (right-click → Remove → No to
+   export). A stale module from an older version will break the compile.
+3. `File → Import File…` and import all 13 `.bas` files in this folder.
+4. `Debug → Compile VBAProject` — this must come back clean.
+5. Save as macro-enabled (`.xlsm`).
+
+## Run
+
+| Macro | What it does |
+|---|---|
+| `Run_All_Passes` | The monthly forecast. Preflight, then all seven passes. |
+| `Run_All_Tests` | Self-check on synthetic data. **Use a scratch workbook — it clears the Consensus and SOF sheets.** |
+| `Build_Deficit_Report` | Deficit / excess inventory report for last completed month. |
+| `Run_Country_Split` | Writes `USA = NA Opportunity − Canada` on the Country Split sheet. |
+
+Nothing needs editing month to month. Every pass keys off today's calendar
+month, so the forecast starts at the current month automatically and past
+months are never overwritten.
+
+---
+
+## Contents
+
+| File | Role |
+|---|---|
+| `modConfig.bas` | Constants, thresholds, colors |
+| `modUtilities.bas` | Block detection, month parsing, accuracy math, grading cache |
+| `modMain.bas` | Orchestrator + preflight check |
+| `modFieldGrading.bas` | Pass 1 — grade field forecast accuracy |
+| `modFFvsBP.bas` | Pass 2 — seed Opportunity from FF or BP |
+| `modSOFOverride.bas` | Pass 3 — override SOF months |
+| `modSoFarRunRate.bas` | Pass 4 — current month = SO FAR + Back Order |
+| `modForecastSelect.bas` | Pass 5 — constrained path + Consensus N-1 hold |
+| `modInventoryPass.bas` | Pass 6 — red font where projected inventory < demand |
+| `modInfoBlock.bas` | Pass 7 — notes column + dissonance fill |
+| `modDeficitReport.bas` | Standalone — deficit / excess report |
+| `modCountrySplit.bas` | Standalone — US / Canada split |
+| `modTests.bas` | Synthetic workbook + assertions |
+
+---
+
+## What changed in v2.0.0
+
+### Forecast selection replaced (Pass 5, new)
+
+Constraint is **inferred** per model *and* per month — there is no flag column:
+
+```
+availability(month) < max(Consensus N-1, Field N-1)
+```
+
+`availability` is the running inventory pool: it starts at the current month's
+Available Inventory (on hand today), adds each later month's incoming, and is
+reduced by whatever consensus consumes as the walk moves forward.
+
+**Constrained path**
+
+| Month | Consensus value |
+|---|---|
+| N to N+3 | Availability |
+| N+4 | Availability + backorder, or Field when Field exceeds that |
+| N+5 onward | Falls through to the normal path |
+
+**Normal path**
+
+| Month | Consensus value |
+|---|---|
+| N to N+2 | Unchanged — Passes 2–4 stand |
+| N+3 onward | Consensus N-1, held even when Field varies past 15% |
+
+Variance never rewrites a number. It only raises a flag and a fill.
+
+### Color coding cut back
+
+`modLegend` is gone, along with all Opportunity-row fills from Passes 2–4.
+Three things still write formatting:
+
+| What | Where | Written by |
+|---|---|---|
+| Accuracy grade (green / yellow / red) | FF Qty Final label cell, column B | Pass 1 |
+| Inventory constrained (red font) | Opportunity month cells | Pass 6 |
+| Dissonance flag (gold fill) | Opportunity month cells | Pass 7 |
+
+### Notes column added (Pass 7, new)
+
+A plain-language notes column in the first free column after the month data
+(`last month column + INFO_BLOCK_COL_OFFSET`, default 2). One section per
+model, starting on that model's first row:
+
+```
+ES-400 II - notes
+26-Aug to 26-Nov: Constrained - availability
+26-Dec: Constrained + backorder
+27-Jan to 27-Jul: Consensus N-1 hold
+Field movement vs Field N-1: 26-Sep +22.4%, 26-Oct -18.0%
+SOF reference (N..N+2): 26-Aug 4,512 | 26-Sep 3,254 | 26-Oct 1,434
+FLAG 26-Sep: Field +22.4% vs Consensus N-1; SOF -19.0% vs Consensus N-1
+```
+
+Decision labels collapse into month ranges. The notes column and all
+Opportunity fills are cleared at the start of every run, so nothing stale
+survives.
+
+**Dissonance tests** — three tests, all at 15% (`VARIANCE_DISSONANCE`), all
+measured **as a percentage of Consensus N-1**; it is the denominator every
+time:
+
+- Field N-1 vs Field
+- Field vs Consensus N-1
+- Consensus N-1 vs SOF
+
+A month with no Consensus N-1 value cannot be tested and is skipped.
+
+---
+
+## Settings worth knowing
+
+All in `modConfig.bas`:
+
+| Constant | Default | Meaning |
+|---|---|---|
+| `CONSTRAINT_USE_FIELD_N1` | `True` | Demand signal is `max(Consensus N-1, Field N-1)`. Set `False` to use the current Field submission instead. |
+| `VARIANCE_DISSONANCE` | `0.15` | Dissonance flag threshold |
+| `SO_FAR_VARIANCE` | `0.5` | Current-month run-rate flag threshold |
+| `INFO_BLOCK_COL_OFFSET` | `2` | Notes column position, right of the last month column |
+| `ACCURACY_GREEN` / `ACCURACY_YELLOW` | `0.8` / `0.6` | Field grading bands |
+
+---
+
+## Required sheet structure
+
+**`Consensus`** — model name in column A (repeated on every row of a block),
+key figure in column B, month headers from column C. The preflight check
+requires these key figure rows per model:
+
+- `Business Plan Quantity`
+- `Sell-In Quantity (Gross)`
+- `SO FAR`
+- `Field Forecast Qty Final`
+- `Opportunity Qty Final`
+- `Available Inventory (Manual)`
+
+Also read when present (a model missing them is skipped, not blocked):
+`Back Order Qty`, `Field Forecast Qty N-1`, `Consensus Fcst Qty Final N-1`.
+
+**`SOF`** — model in column A, three month columns from column B.
+
+**`Country Split`** (only for `Run_Country_Split`) — model in column A,
+segment in column B (`CANADA TOTAL` / `USA TOTAL`), key figure in column C,
+months from column D.
+
+If the preflight fails it lists every problem in one dialog and changes
+nothing on the sheet.
