@@ -5,17 +5,19 @@ Option Explicit
 ' modVarianceSummary - standalone pass
 '
 ' Builds a summary sheet comparing Marketing Demand Forecast
-' against Field Forecast across the forward window (current
-' month through the last month column - Aug..Mar on a sheet
-' that ends at 27-Mar), by model, in units and percent, with
-' the reasoning behind each model's numbers.
+' against Field Forecast over a FIXED Aug - Mar window, by
+' model, in units and percent, with the reasoning behind each
+' model's numbers.
 '
 ' Three tables on one sheet:
-'   1  Summary by model   totals, variance in units and percent,
-'                         FF accuracy grade, and why each model's
+'   1  Summary by model   Aug-Mar totals, variance in units and
+'                         percent, and why each model's
 '                         Opportunity landed where it did
 '   2  Monthly variance   units, model x month
 '   3  Monthly variance   percent, model x month
+'
+' The window is fixed, not derived from today's date. To move
+' it, edit the four window constants below.
 '
 ' Run AFTER Run_All_Passes. The "why" column replays the same
 ' decision walk the selection pass used, so it only reflects
@@ -26,6 +28,12 @@ Option Explicit
 ' =============================================================
 
 Private Const SHEET_VARIANCE As String = "Mktg vs FF Variance"
+
+' --- Fixed reporting window: Aug 2026 through Mar 2027 -------
+Private Const VAR_START_YEAR As Long = 2026
+Private Const VAR_START_MONTH As Long = 8      ' August
+Private Const VAR_END_YEAR As Long = 2027
+Private Const VAR_END_MONTH As Long = 3        ' March
 
 ' Which row on Consensus is the Marketing demand forecast.
 ' The sheet carries several Marketing rows - this is the current
@@ -56,26 +64,27 @@ Public Sub Build_Variance_Summary()
         Exit Sub
     End If
 
-    Dim curCol As Long
-    curCol = CurrentMonthColumn(ws)
-    If curCol = 0 Then
-        MsgBox "Could not find a column matching today's calendar month on '" & _
-               SHEET_CONSENSUS & "'.", vbCritical, "Variance Summary"
+    ' --- Resolve the fixed window against the sheet ---
+    Dim iFrom As Long, iTo As Long
+    iFrom = IndexOfMonth(months, VAR_START_YEAR, VAR_START_MONTH)
+    iTo = IndexOfMonth(months, VAR_END_YEAR, VAR_END_MONTH)
+
+    If iFrom < 0 Or iTo < 0 Then
+        MsgBox "Could not find the reporting window on '" & SHEET_CONSENSUS & "'." & vbCrLf & vbCrLf & _
+               "Looking for " & Format(DateSerial(VAR_START_YEAR, VAR_START_MONTH, 1), "yy-mmm") & _
+               " through " & Format(DateSerial(VAR_END_YEAR, VAR_END_MONTH, 1), "yy-mmm") & "." & vbCrLf & _
+               "Edit the window constants at the top of modVarianceSummary to move it.", _
+               vbCritical, "Variance Summary"
+        Exit Sub
+    End If
+    If iTo < iFrom Then
+        MsgBox "The reporting window ends before it starts. Check the window constants.", _
+               vbCritical, "Variance Summary"
         Exit Sub
     End If
 
-    ' Window: current month through the last month column.
-    Dim iFrom As Long, iTo As Long
-    iFrom = -1
-    Dim i As Long
-    For i = LBound(months, 1) To UBound(months, 1)
-        If CLng(months(i, 1)) = curCol Then
-            iFrom = i
-            Exit For
-        End If
-    Next i
-    If iFrom < 0 Then Exit Sub
-    iTo = UBound(months, 1)
+    Dim curCol As Long
+    curCol = CurrentMonthColumn(ws)   ' only used to replay the decision walk
 
     Dim nMonths As Long
     nMonths = iTo - iFrom + 1
@@ -118,10 +127,8 @@ Public Sub Build_Variance_Summary()
     rep.Cells(r, 3).Value = "Field Forecast"
     rep.Cells(r, 4).Value = "Variance (units)"
     rep.Cells(r, 5).Value = "Variance (%)"
-    rep.Cells(r, 6).Value = "Direction"
-    rep.Cells(r, 7).Value = "FF accuracy grade"
-    rep.Cells(r, 8).Value = "Why the Opportunity landed where it did"
-    StyleHeader rep.Range(rep.Cells(r, 1), rep.Cells(r, 8))
+    rep.Cells(r, 6).Value = "Why the Opportunity landed where it did"
+    StyleHeader rep.Range(rep.Cells(r, 1), rep.Cells(r, 6))
     r = r + 1
 
     Dim summaryFirst As Long: summaryFirst = r
@@ -138,11 +145,11 @@ Public Sub Build_Variance_Summary()
         rep.Cells(r, 1).Value = modelName
 
         If mktgRow = 0 Or ffRow = 0 Then
-            rep.Cells(r, 8).Value = "Cannot compare - missing row: " & _
+            rep.Cells(r, 6).Value = "Cannot compare - missing row: " & _
                 IIf(mktgRow = 0, "'" & KF_MKTG_DEMAND & "'", "") & _
                 IIf(mktgRow = 0 And ffRow = 0, " and ", "") & _
                 IIf(ffRow = 0, "'" & KF_FIELD_FCST_FINAL & "'", "")
-            rep.Cells(r, 8).Font.Italic = True
+            rep.Cells(r, 6).Font.Italic = True
             r = r + 1
             GoTo NextBlock
         End If
@@ -168,16 +175,7 @@ Public Sub Build_Variance_Summary()
             rep.Cells(r, 5).Value = "n/a"
         End If
 
-        If varUnits > 0 Then
-            rep.Cells(r, 6).Value = "Marketing above Field"
-        ElseIf varUnits < 0 Then
-            rep.Cells(r, 6).Value = "Marketing below Field"
-        Else
-            rep.Cells(r, 6).Value = "Aligned"
-        End If
-
-        rep.Cells(r, 7).Value = GradeText(CStr(b("name")))
-        rep.Cells(r, 8).Value = WhyText(ws, b, months, curCol, iFrom, iTo, varPct, havePct)
+        rep.Cells(r, 6).Value = WhyText(ws, b, months, curCol, iFrom, iTo, varPct, havePct)
 
         rep.Cells(r, 2).NumberFormat = "#,##0"
         rep.Cells(r, 3).NumberFormat = "#,##0"
@@ -205,8 +203,8 @@ NextBlock:
         rep.Cells(r, 2).NumberFormat = "#,##0"
         rep.Cells(r, 3).NumberFormat = "#,##0"
         rep.Cells(r, 4).NumberFormat = "#,##0;[Red]-#,##0"
-        rep.Range(rep.Cells(r, 1), rep.Cells(r, 8)).Font.Bold = True
-        rep.Range(rep.Cells(r, 1), rep.Cells(r, 8)).Borders(xlEdgeTop).LineStyle = xlContinuous
+        rep.Range(rep.Cells(r, 1), rep.Cells(r, 6)).Font.Bold = True
+        rep.Range(rep.Cells(r, 1), rep.Cells(r, 6)).Borders(xlEdgeTop).LineStyle = xlContinuous
         r = r + 1
     End If
 
@@ -224,8 +222,8 @@ NextBlock:
 
     ' ---------- Cosmetics ----------
     rep.Columns("A:A").ColumnWidth = 18
-    rep.Columns("B:G").AutoFit
-    rep.Columns("H:H").ColumnWidth = 90
+    rep.Columns("B:E").AutoFit
+    rep.Columns("F:F").ColumnWidth = 90
     rep.Rows(hdrRow).WrapText = True
     rep.Activate
     rep.Range("A1").Select
@@ -307,54 +305,41 @@ End Function
 ' Why this model's Opportunity landed where it did.
 '
 ' Replays the selection pass read-only and collapses the decision
-' labels into month ranges, then adds the field-accuracy context
-' that drove the FF-vs-BP choice and a note on the variance size.
+' labels into month ranges, then adds a note on the size of the
+' Marketing-vs-Field gap.
 ' -------------------------------------------------------------
 Private Function WhyText(ws As Worksheet, ByVal block As Object, ByVal months As Variant, _
                          ByVal curCol As Long, ByVal iFrom As Long, ByVal iTo As Long, _
                          ByVal varPct As Double, ByVal havePct As Boolean) As String
     Dim s As String
 
-    Dim decisions As Object
-    On Error Resume Next
-    Set decisions = ComputeDecisions(ws, block, months, curCol, False)
-    On Error GoTo 0
+    If curCol > 0 Then
+        Dim decisions As Object
+        On Error Resume Next
+        Set decisions = ComputeDecisions(ws, block, months, curCol, False)
+        On Error GoTo 0
 
-    If Not decisions Is Nothing Then
-        Dim prevLabel As String, runStart As Long
-        prevLabel = ""
-        runStart = iFrom
-        Dim i As Long
-        For i = iFrom To iTo
-            Dim col As Long, lbl As String
-            col = CLng(months(i, 1))
-            If decisions.Exists(col) Then lbl = CStr(decisions(col)) Else lbl = ""
-            If lbl <> prevLabel Then
-                If Len(prevLabel) > 0 Then
-                    s = AppendSemi(s, RunText(months, runStart, i - 1, prevLabel))
+        If Not decisions Is Nothing Then
+            Dim prevLabel As String, runStart As Long
+            prevLabel = ""
+            runStart = iFrom
+            Dim i As Long
+            For i = iFrom To iTo
+                Dim col As Long, lbl As String
+                col = CLng(months(i, 1))
+                If decisions.Exists(col) Then lbl = CStr(decisions(col)) Else lbl = ""
+                If lbl <> prevLabel Then
+                    If Len(prevLabel) > 0 Then
+                        s = AppendSemi(s, RunText(months, runStart, i - 1, prevLabel))
+                    End If
+                    prevLabel = lbl
+                    runStart = i
                 End If
-                prevLabel = lbl
-                runStart = i
+            Next i
+            If Len(prevLabel) > 0 Then
+                s = AppendSemi(s, RunText(months, runStart, iTo, prevLabel))
             End If
-        Next i
-        If Len(prevLabel) > 0 Then
-            s = AppendSemi(s, RunText(months, runStart, iTo, prevLabel))
         End If
-    End If
-
-    ' Why FF was or was not trusted in the FF-vs-BP seed
-    Dim acc As Double
-    acc = GetModelAccuracy(CStr(block("name")))
-    If acc = ACCURACY_UNGRADABLE Then
-        s = AppendSemi(s, "field forecast ungradable (under 2 completed months), so BP was used as the seed")
-    ElseIf acc >= ACCURACY_GREEN Then
-        s = AppendSemi(s, "field forecast graded " & Format(acc, "0.0%") & _
-                          ", at or above the " & Format(ACCURACY_GREEN, "0%") & _
-                          " bar, so FF was trusted where it beat BP")
-    Else
-        s = AppendSemi(s, "field forecast graded " & Format(acc, "0.0%") & _
-                          ", under the " & Format(ACCURACY_GREEN, "0%") & _
-                          " bar, so BP was used instead of FF")
     End If
 
     ' Variance context
@@ -376,6 +361,19 @@ End Function
 ' Helpers
 ' -------------------------------------------------------------
 
+' Index into the months array for a given year/month, or -1.
+Private Function IndexOfMonth(ByVal months As Variant, ByVal y As Long, ByVal m As Long) As Long
+    IndexOfMonth = -1
+    Dim i As Long
+    For i = LBound(months, 1) To UBound(months, 1)
+        Dim d As Date: d = CDate(months(i, 2))
+        If Year(d) = y And Month(d) = m Then
+            IndexOfMonth = i
+            Exit Function
+        End If
+    Next i
+End Function
+
 Private Function SumOver(ws As Worksheet, ByVal rowNum As Long, ByVal months As Variant, _
                          ByVal iFrom As Long, ByVal iTo As Long) As Double
     Dim t As Double, i As Long
@@ -393,20 +391,6 @@ Private Function ComputePct(ByVal mktg As Double, ByVal ff As Double, ByRef outP
     If denom = 0 Then Exit Function
     outPct = (mktg - ff) / denom
     ComputePct = True
-End Function
-
-Private Function GradeText(ByVal modelName As String) As String
-    Dim acc As Double
-    acc = GetModelAccuracy(modelName)
-    If acc = ACCURACY_UNGRADABLE Then
-        GradeText = "ungradable"
-    ElseIf acc >= ACCURACY_GREEN Then
-        GradeText = Format(acc, "0.0%") & " (green)"
-    ElseIf acc >= ACCURACY_YELLOW Then
-        GradeText = Format(acc, "0.0%") & " (yellow)"
-    Else
-        GradeText = Format(acc, "0.0%") & " (red)"
-    End If
 End Function
 
 Private Function RunText(ByVal months As Variant, ByVal iFrom As Long, ByVal iTo As Long, _

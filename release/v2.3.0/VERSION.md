@@ -1,6 +1,6 @@
 # VBA Demand Forecasting Suite — v2.3.0
 
-**Released:** 2026-08-13
+**Released:** 2026-08-21
 **Branch:** `claude/vba-demand-forecasting-QIF7f`
 
 Drop-in module set for the consensus forecast workbook. Import every `.bas`
@@ -25,7 +25,7 @@ in this folder, then run `Run_All_Passes`.
 | `Run_All_Tests` | Self-check on synthetic data. **Use a scratch workbook — it clears the Consensus and SOF sheets.** |
 | `Build_Deficit_Report` | Deficit / excess inventory report for last completed month. |
 | `Run_Country_Split` | Writes `USA = NA Opportunity − Canada` on the Country Split sheet. |
-| `Build_Variance_Summary` | Marketing vs Field variance sheet. Run after `Run_All_Passes`. |
+| `Build_Variance_Summary` | Marketing vs Field variance sheet, Aug–Mar. Run after `Run_All_Passes`. |
 
 Nothing needs editing month to month. Every pass keys off today's calendar
 month, so the forecast starts at the current month automatically and past
@@ -61,18 +61,21 @@ New module `modVarianceSummary.bas`. Nothing else changed.
 ### Marketing vs Field variance summary
 
 `Build_Variance_Summary` creates a **`Mktg vs FF Variance`** sheet comparing
-Marketing Demand Forecast against Field Forecast across the forward window —
-current month through the last month column, which is Aug–Mar on a sheet
-ending at 27-Mar. Three tables:
+Marketing Demand Forecast against Field Forecast over a **fixed Aug–Mar
+window**, by model. Three tables:
 
-1. **Summary by model** — window totals for both rows, variance in units and
-   percent, direction, FF accuracy grade, and a plain-language "why the
-   Opportunity landed where it did" column
+1. **Summary by model** — Aug–Mar totals for both rows, variance in units and
+   percent, and a plain-language "why the Opportunity landed where it did"
+   column
 2. **Monthly variance (units)** — model × month
 3. **Monthly variance (%)** — model × month
 
 Percent variances at or beyond 15% are filled gold. A TOTAL row closes
 table 1, written as live formulas so it recalculates if you edit the sheet.
+
+**The window is fixed, not derived from today's date.** It will stay on
+Aug–Mar next month. To move it, edit the four window constants at the top of
+the module.
 
 **Run it after `Run_All_Passes`.** The "why" column replays the same decision
 walk the selection pass uses, so it only reflects reality once that pass has
@@ -80,12 +83,15 @@ run.
 
 | Constant | Default | Meaning |
 |---|---|---|
+| `VAR_START_YEAR` / `VAR_START_MONTH` | `2026` / `8` | Window start — Aug 2026 |
+| `VAR_END_YEAR` / `VAR_END_MONTH` | `2027` / `3` | Window end — Mar 2027 |
 | `KF_MKTG_DEMAND` | `"Marketing Forecast Qty"` | Which Marketing row to compare |
 | `VAR_PCT_OF_FF` | `True` | Percent is of Field Forecast; `False` divides by Marketing |
 | `VAR_MATERIAL` | `0.15` | Threshold for calling a variance material |
 
-The window is derived from today's date, so the sheet re-scopes itself every
-month with no edits.
+If the window months are not found on the Consensus sheet the run stops with
+a dialog naming the months it looked for, rather than silently reporting a
+partial window.
 
 ---
 
