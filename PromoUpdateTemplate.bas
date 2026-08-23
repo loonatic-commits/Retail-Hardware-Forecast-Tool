@@ -35,8 +35,12 @@ Option Explicit
 '  5. Weeks run Sunday-to-Saturday: a block's calendar span is its first week's date
 '     through its last week's date + 6 days.  "Full Period" therefore ends on the
 '     event's End Week + 6 days.
-'  6. A promo block is a run of consecutive week columns carrying the same price
-'     (tolerance 0.0001).  A grid week with no matching WB column ends the run.
+'  6. All weeks at the same promo price form ONE depth group for a product, whether or
+'     not they are consecutive (tolerance 0.0001).  A gap in the promo does not start a
+'     new output row; only a change of depth, or a change of account funding partway
+'     through a depth, does.  Because a group may straddle a gap, funding windows are
+'     intersected with the weeks actually promoted at that depth, so an event falling in
+'     a gap cannot split the row.
 '  7. Contribution % is averaged per product x channel over CY rows with a positive
 '     discount, excluding last year's fully funded rows (Accn Cont. = 0 with a
 '     populated Special Promo Start Date).  Fallback order: product x channel average,
@@ -158,11 +162,23 @@ Private mEvModels() As String
 Private mEvCount As Long
 Private mEvIdx As Object
 
-'--- funding windows / segments for the block in hand ---------------------------------
+'--- the depth group in hand (week indexes at one promo price, gaps included) ---------
+Private mBlkWk() As Long
+Private mBlkCount As Long
+Private mSeenPrice As Object
+Private mCovS() As Double
+Private mCovE() As Double
+Private mCovCount As Long
+
+'--- funding windows / segments for the depth group in hand ---------------------------
 Private mWinS() As Double
 Private mWinE() As Double
 Private mWinN() As String
 Private mWinCount As Long
+Private mWin2S() As Double
+Private mWin2E() As Double
+Private mWin2N() As String
+Private mWin2Count As Long
 Private mSegS() As Double
 Private mSegE() As Double
 Private mSegN() As String
@@ -977,12 +993,14 @@ Private Sub BuildOutput()
     Dim model As String
     Dim gridMSRP As Double
     Dim price As Double
+    Dim other As Double
     Dim usable As Boolean
-    Dim ok As Boolean
+    Dim pKey As String
 
     mOutCols = mNYCols
     mOutCap = 512
     ReDim mOut(1 To mOutCap, 1 To mOutCols)
+    ReDim mBlkWk(1 To mWkCount)
     mOutRow = 0
     mFundedRows = 0
 
@@ -998,8 +1016,11 @@ Private Sub BuildOutput()
             If Not mChanList.Exists(pk) Then
                 LogIssue "No CY channel rows", prod, "", "", "'" & prod & "' appears on the Promo Grid but has no rows on the CY Template, so no channel could be assigned. No output rows were written for it."
             Else
-                i = 1
-                Do While i <= mWkCount
+                '--- one depth group per distinct promo price across the whole calendar.
+                '--- A gap in the promo does not start a new row; only a change of depth,
+                '--- or a change of account funding partway through, does.
+                Set mSeenPrice = CreateObject("Scripting.Dictionary")
+                For i = 1 To mWkCount
                     usable = False
                     price = 0
                     If mWkNYCol(i) > 0 Then
@@ -1010,30 +1031,110 @@ Private Sub BuildOutput()
                     End If
 
                     If usable Then
-                        j = i
-                        Do While j < mWkCount
-                            ok = False
-                            If mWkNYCol(j + 1) > 0 Then
-                                If HasNum(mGrid(r, mWkGridCol(j + 1))) Then
-                                    If Abs(ToNum(mGrid(r, mWkGridCol(j + 1))) - price) < PRICE_TOL Then ok = True
+                        pKey = Format$(price, "0.0000")
+                        If Not mSeenPrice.Exists(pKey) Then
+                            mSeenPrice.Add pKey, 1
+                            mBlkCount = 0
+                            For j = i To mWkCount
+                                If mWkNYCol(j) > 0 Then
+                                    If HasNum(mGrid(r, mWkGridCol(j))) Then
+                                        other = ToNum(mGrid(r, mWkGridCol(j)))
+                                        If other > 0 Then
+                                            If Abs(other - price) < PRICE_TOL Then
+                                                mBlkCount = mBlkCount + 1
+                                                mBlkWk(mBlkCount) = j
+                                            End If
+                                        End If
+                                    End If
                                 End If
-                            End If
-                            If Not ok Then Exit Do
-                            j = j + 1
-                        Loop
-                        EmitBlock r, prod, model, gridMSRP, price, i, j
-                        i = j + 1
-                    Else
-                        i = i + 1
+                            Next j
+                            EmitDepth prod, model, gridMSRP, price
+                        End If
                     End If
-                Loop
+                Next i
             End If
         End If
     Next r
 End Sub
 
-'--- write every channel row for one contiguous promo block (grid rows i1..i2)
-Private Sub EmitBlock(ByVal gr As Long, ByVal prod As String, ByVal model As String, ByVal gridMSRP As Double, ByVal price As Double, ByVal i1 As Long, ByVal i2 As Long)
+'--- merge the depth group's weeks into runs of actually-promoted days
+Private Sub BuildCoverage()
+    Dim i As Long
+    Dim d As Double
+
+    mCovCount = 0
+    If mBlkCount = 0 Then Exit Sub
+    ReDim mCovS(1 To mBlkCount)
+    ReDim mCovE(1 To mBlkCount)
+
+    For i = 1 To mBlkCount
+        d = mWkDate(mBlkWk(i))
+        If mCovCount = 0 Then
+            mCovCount = 1
+            mCovS(1) = d
+            mCovE(1) = d + 6
+        ElseIf d <= mCovE(mCovCount) + 1 Then
+            mCovE(mCovCount) = d + 6
+        Else
+            mCovCount = mCovCount + 1
+            mCovS(mCovCount) = d
+            mCovE(mCovCount) = d + 6
+        End If
+    Next i
+End Sub
+
+'--- clip funding windows to the weeks actually promoted at this depth, so an event
+'--- sitting in a gap cannot split the row
+Private Sub IntersectWindowsWithCoverage()
+    Dim w As Long
+    Dim c As Long
+    Dim ws0 As Double
+    Dim we0 As Double
+    Dim cap As Long
+
+    If mWinCount = 0 Then Exit Sub
+    If mCovCount = 0 Then
+        mWinCount = 0
+        Exit Sub
+    End If
+
+    cap = mWinCount * mCovCount
+    ReDim mWin2S(1 To cap)
+    ReDim mWin2E(1 To cap)
+    ReDim mWin2N(1 To cap)
+    mWin2Count = 0
+
+    For w = 1 To mWinCount
+        For c = 1 To mCovCount
+            ws0 = mWinS(w)
+            If mCovS(c) > ws0 Then ws0 = mCovS(c)
+            we0 = mWinE(w)
+            If mCovE(c) < we0 Then we0 = mCovE(c)
+            If ws0 <= we0 Then
+                mWin2Count = mWin2Count + 1
+                mWin2S(mWin2Count) = ws0
+                mWin2E(mWin2Count) = we0
+                mWin2N(mWin2Count) = mWinN(w)
+            End If
+        Next c
+    Next w
+
+    mWinCount = mWin2Count
+    If mWinCount > 0 Then
+        ReDim mWinS(1 To mWinCount)
+        ReDim mWinE(1 To mWinCount)
+        ReDim mWinN(1 To mWinCount)
+        For w = 1 To mWinCount
+            mWinS(w) = mWin2S(w)
+            mWinE(w) = mWin2E(w)
+            mWinN(w) = mWin2N(w)
+        Next w
+        SortMergeWindows
+    End If
+End Sub
+
+'--- write every channel row for one depth group (all weeks at one promo price)
+Private Sub EmitDepth(ByVal prod As String, ByVal model As String, ByVal gridMSRP As Double, ByVal price As Double)
     Dim pk As String
     Dim custs As Variant
     Dim ci As Long
@@ -1058,10 +1159,13 @@ Private Sub EmitBlock(ByVal gr As Long, ByVal prod As String, ByVal model As Str
     Dim wholeBlock As Boolean
     Dim wkLabel As String
 
+    If mBlkCount = 0 Then Exit Sub
+
     pk = UCase$(prod)
-    blockStart = mWkDate(i1)
-    blockEnd = mWkDate(i2) + 6
+    blockStart = mWkDate(mBlkWk(1))
+    blockEnd = mWkDate(mBlkWk(mBlkCount)) + 6
     wkLabel = FmtD(blockStart) & " - " & FmtD(blockEnd)
+    BuildCoverage
 
     custs = Split(CStr(mChanList(pk)), FLD)
     For ci = LBound(custs) To UBound(custs)
@@ -1149,10 +1253,10 @@ Private Sub EmitBlock(ByVal gr As Long, ByVal prod As String, ByVal model As Str
                 SetOut "Accn Cont.", accn
                 SetOut "Net", RoundHalfUp(price)
                 SetOut "Key Figure", mCfgKeyFig
-                SetOut "Start Week", mWkCap(i1)
+                SetOut "Start Week", mWkCap(mBlkWk(1))
 
-                For w = i1 To i2
-                    mOut(mOutRow, mWkNYCol(w)) = RoundHalfUp(price)
+                For w = 1 To mBlkCount
+                    mOut(mOutRow, mWkNYCol(mBlkWk(w))) = RoundHalfUp(price)
                 Next w
             Next s
         End If
@@ -1199,6 +1303,7 @@ Private Sub BuildWindows(ByVal prod As String, ByVal model As String, ByVal bs A
     Next e
 
     SortMergeWindows
+    IntersectWindowsWithCoverage
 End Sub
 
 '--- sort the window list by start date, then merge overlapping / abutting windows
