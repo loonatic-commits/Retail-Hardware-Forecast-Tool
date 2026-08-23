@@ -1104,15 +1104,15 @@ Private Sub EmitBlock(ByVal gr As Long, ByVal prod As String, ByVal model As Str
                 mOutRow = mOutRow + 1
                 EnsureOutCapacity mOutRow
 
-                disc = R2(pp - price)
+                disc = RoundHalfUp(pp - price)
                 If mSegF(s) Then
                     accn = 0
                     epson = disc
                     note = mSegN(s)
                     mFundedRows = mFundedRows + 1
                 Else
-                    accn = R2(pct * disc)
-                    epson = R2(disc - accn)
+                    accn = RoundHalfUp(pct * disc)
+                    epson = RoundHalfUp(disc - accn)
                     note = mCfgBlank
                 End If
 
@@ -1142,17 +1142,17 @@ Private Sub EmitBlock(ByVal gr As Long, ByVal prod As String, ByVal model As Str
                 SetOut "Promo Note", note
                 SetOut "Special Promo Start Date", sdText
                 SetOut "Special Promo End Date", edText
-                SetOut "MSRP", R2(useMSRP)
-                SetOut "Policy Price", R2(pp)
+                SetOut "MSRP", RoundHalfUp(useMSRP)
+                SetOut "Policy Price", RoundHalfUp(pp)
                 SetOut "Financial Year", mCfgFinYear
                 SetOut "Epson Cont.", epson
                 SetOut "Accn Cont.", accn
-                SetOut "Net", R2(price)
+                SetOut "Net", RoundHalfUp(price)
                 SetOut "Key Figure", mCfgKeyFig
                 SetOut "Start Week", mWkCap(i1)
 
                 For w = i1 To i2
-                    mOut(mOutRow, mWkNYCol(w)) = R2(price)
+                    mOut(mOutRow, mWkNYCol(w)) = RoundHalfUp(price)
                 Next w
             Next s
         End If
@@ -1562,7 +1562,7 @@ Private Sub WriteLog(ByVal wb As Workbook)
     ws.Cells(r + 4, 1).Value = "Exceptions logged"
     ws.Cells(r + 4, 2).Value = mLogRow
     ws.Cells(r + 5, 1).Value = "Run time (seconds)"
-    ws.Cells(r + 5, 2).Value = R2(Timer - mT0)
+    ws.Cells(r + 5, 2).Value = RoundHalfUp(Timer - mT0)
     ws.Cells(r + 6, 1).Value = "Generated"
     ws.Cells(r + 6, 2).Value = Format$(Now, "yyyy-mm-dd hh:nn:ss")
     ws.Cells(r + 7, 1).Value = "Products on grid"
@@ -1597,12 +1597,12 @@ End Sub
 '=====================================================================================
 
 '--- half-up rounding to cents (VBA's Round is banker's rounding)
-Private Function R2(ByVal v As Double) As Double
-    Dim sgn As Double
+Private Function RoundHalfUp(ByVal v As Double) As Double
+    Dim sgnValue As Double
 
-    sgn = 1
-    If v < 0 Then sgn = -1
-    R2 = sgn * CDbl(Int(CDec(Abs(v)) * 100 + 0.5)) / 100
+    sgnValue = 1
+    If v < 0 Then sgnValue = -1
+    RoundHalfUp = sgnValue * CDbl(Int(CDec(Abs(v)) * 100 + 0.5)) / 100
 End Function
 
 '--- IsNumeric says True for Empty, so every numeric read goes through here
