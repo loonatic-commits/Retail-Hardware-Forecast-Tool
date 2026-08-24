@@ -53,10 +53,41 @@ falls back to the channel average across all products, then to 0 — both are lo
 
 Assumptions are listed in the header comment of `PromoUpdateTemplate.bas`.
 
+## PromoUpdateTemplateCA.bas
+
+The Canada build, for the **separate Canadian workbook**. Import it there and run
+`GeneratePromoUpdateTemplateCA`. It shares nothing with the US module — don't import both
+into the same workbook. Same five input sheets, same two output sheets.
+
+Canadian events (Boxing Day and the like) and Canadian funding accounts need no code
+change: events come from the `Full Funding Events` sheet and accounts from `Config`.
+
+### What differs from the US build
+
+| | US | Canada |
+|---|---|---|
+| Week calendar | NY Template `WB` columns; grid weeks with no match were **skipped** | **Promo Grid dates**, converted to `WB` captions; missing columns are **created** |
+| Output columns | NY Template header verbatim | NY non-week columns in order, then grid-derived week columns in date order |
+| MSRP | Promo Grid, falling back to CY Template | **Promo Grid always**; a differing CY MSRP is logged and the grid wins |
+| Month names | `Format()` | internal table, so a French-Canadian locale can't yield `AVR` for `APR` |
+| `Country` default | `US` | `CA`, and a non-CA Config value is logged as a warning |
+
+Grid dates need not fall on any particular weekday — `4/1/2026` (a Wednesday) becomes
+`WB APR-01 2026`. A week is still seven days; consecutive grid weeks that aren't 7 days
+apart are logged once.
+
+The Run Log summarises the calendar reconciliation: how many grid weeks already existed on
+the NY Template, how many were added, and how many NY Template weeks had no grid column and
+were left out.
+
+No FX conversion is performed anywhere — figures stay in the workbook's own currency.
+
 ## PromoUpdateTemplateTests.bas
 
 A standalone test module. Import it the same way and run
 `TestAccountContributionConsistency`.
+
+It is country-agnostic — run it in either the US or the Canadian workbook.
 
 It checks that the contribution percentage carried forward from the CY Template is the same
 across models within a channel — a channel negotiates one funding split and applies it to
